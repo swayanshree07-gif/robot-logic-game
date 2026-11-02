@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Night Shift at Ferrolab</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>Night Shift at <span>Ferrolab</span></h1>
+    <label>Level <select id="level-select"></select></label>
+  </header>
+  <main>
+    <section class="stage">
+      <p id="brief" class="brief"></p>
+      <canvas id="board" width="480" height="320" aria-label="Factory floor"></canvas>
+      <p id="status" class="status" role="status">Ready.</p>
+    </section>
+    <section class="code">
+      <label for="editor">Pip's program (Cog)</label>
+      <textarea id="editor" spellcheck="false" rows="16"></textarea>
+      <div class="buttons">
+        <button id="run">▶ Run</button>
+        <button id="step">⏭ Step</button>
+        <button id="stop">■ Reset</button>
+      </div>
+      <details>
+        <summary>Cog quick reference</summary>
+        <pre>move [N]  left  right  grab  drop  wait
+repeat N … end
+while COND … end
+if COND … elif COND … else … end
+def name … end      name   (call)
+sensors: clear wall clear_left clear_right
+         goal item holding
+combine: not  and  or  ( )</pre>
+      </details>
+    </section>
+  </main>
+  <script type="module" src="src/ui/main.js"></script>
+</body>
+</html>

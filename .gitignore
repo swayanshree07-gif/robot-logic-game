@@ -13,3 +13,5 @@ node_modules/
 *.pt
 *.safetensors
 *.onnx
+.tmp/
+.DS_Store
