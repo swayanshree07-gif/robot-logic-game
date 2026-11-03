@@ -107,4 +107,10 @@ function drawPip(ctx, px, py, s, robot) {
     ctx.fillStyle = PAL.item; ctx.fillRect(-2 * u, -8 * u, 4 * u, 3 * u);
   }
   ctx.restore();
+  if (robot.holding > 1) { // hopper count badge, drawn upright
+    ctx.fillStyle = PAL.eye;
+    ctx.font = `bold ${Math.round(6 * u)}px monospace`;
+    ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+    ctx.fillText(String(robot.holding), cx + 8 * u, cy - 8 * u);
+  }
 }

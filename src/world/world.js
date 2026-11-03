@@ -46,8 +46,17 @@ export function parseMap(rows) {
   return { width, height: rows.length, tiles, paint, items, robot };
 }
 
+/** Normalise a `win` field into an array of { type, count? } rules (no validation). */
+export function winRules(win = 'reach') {
+  const list = Array.isArray(win) ? win : [win];
+  return list.map((r) => (typeof r === 'string' ? { type: r } : { ...r }));
+}
+
 export class World {
-  /** level: { map: string[], win?: 'reach' | 'deliver' } */
+  /**
+   * level: { map: string[], win?: rule | rule[], capacity?: number } (see level.js)
+   * robot.holding is the number of parts Pip carries (0 = empty gripper).
+   */
   constructor(level) {
     const m = parseMap(level.map);
     this.width = m.width;
@@ -55,10 +64,12 @@ export class World {
     this.tiles = m.tiles;
     this.paint = m.paint;
     this.items = m.items.map((p) => ({ ...p }));
-    this.robot = { ...m.robot, holding: false };
+    this.robot = { ...m.robot, holding: 0 };
+    this.capacity = level.capacity ?? 1;
     this.delivered = 0;
     this.totalItems = m.items.length;
-    this.win = level.win || 'reach';
+    this.rules = winRules(level.win);
+    this.stats = { move: 0, left: 0, right: 0, grab: 0, drop: 0, wait: 0 };
     this.log = []; // events for renderer/sound: {type, ...}
   }
 
@@ -89,7 +100,7 @@ export class World {
       case 'clear_right': { const p = this.ahead(1); return !this.isBlocked(p.x, p.y); }
       case 'goal': return this.tile(r.x, r.y) === 'goal';
       case 'item': return this.itemAt(r.x, r.y) >= 0;
-      case 'holding': return r.holding;
+      case 'holding': return r.holding > 0;
       case 'bin': return this.tile(r.x, r.y) === 'bin';
       case 'red': case 'yellow': case 'blue': return this.paint[r.y][r.x] === name;
       default: throw new Error(`unknown sensor ${name}`);
@@ -97,6 +108,12 @@ export class World {
   }
 
   act(name) {
+    const res = this.doAct(name);
+    if (res.ok) this.stats[name]++;
+    return res;
+  }
+
+  doAct(name) {
     const r = this.robot;
     switch (name) {
       case 'move': {
@@ -113,23 +130,27 @@ export class World {
       case 'right': r.dir = (r.dir + 1) % 4; this.log.push({ type: 'turn', dir: r.dir }); return { ok: true };
       case 'wait': this.log.push({ type: 'wait' }); return { ok: true };
       case 'grab': {
-        if (r.holding) return { ok: false, error: 'Pip is already holding a part' };
         const i = this.itemAt(r.x, r.y);
-        if (i < 0) return { ok: false, error: 'there is no part here to grab' };
+        if (i < 0) return { ok: false, error: 'there is no part here to grab', code: 'grab' };
+        if (r.holding >= this.capacity) {
+          return this.capacity === 1
+            ? { ok: false, error: 'Pip is already holding a part', code: 'full' }
+            : { ok: false, error: `Pip's gripper is full (${this.capacity} parts)`, code: 'full' };
+        }
         this.items.splice(i, 1);
-        r.holding = true;
+        r.holding++;
         this.log.push({ type: 'grab', x: r.x, y: r.y });
         return { ok: true };
       }
       case 'drop': {
-        if (!r.holding) return { ok: false, error: 'Pip is not holding anything' };
+        if (!r.holding) return { ok: false, error: 'Pip is not holding anything', code: 'drop' };
         if (this.tile(r.x, r.y) === 'bin') {
           this.delivered++;
         } else {
-          if (this.itemAt(r.x, r.y) >= 0) return { ok: false, error: 'there is already a part on this tile' };
+          if (this.itemAt(r.x, r.y) >= 0) return { ok: false, error: 'there is already a part on this tile', code: 'drop' };
           this.items.push({ x: r.x, y: r.y });
         }
-        r.holding = false;
+        r.holding--;
         this.log.push({ type: 'drop', x: r.x, y: r.y });
         return { ok: true };
       }
@@ -141,12 +162,38 @@ export class World {
   stateKey() {
     const r = this.robot;
     const items = this.items.map((it) => `${it.x},${it.y}`).sort().join(';');
-    return `${r.x},${r.y},${r.dir},${r.holding ? 1 : 0}|${items}|${this.delivered}`;
+    return `${r.x},${r.y},${r.dir},${r.holding}|${items}|${this.delivered}`;
   }
 
+  /** Is one win rule satisfied right now? */
+  ruleMet(rule) {
+    switch (rule.type) {
+      case 'reach': return this.tile(this.robot.x, this.robot.y) === 'goal';
+      case 'collect': return this.items.length === 0;
+      case 'deliver': return this.delivered >= (rule.count ?? this.totalItems);
+      default: return false;
+    }
+  }
+
+  /** All rules must hold at the same moment. Checked after every action. */
   isWon() {
-    if (this.win === 'reach') return this.tile(this.robot.x, this.robot.y) === 'goal';
-    if (this.win === 'deliver') return this.delivered === this.totalItems;
-    return false;
+    return this.rules.length > 0 && this.rules.every((r) => this.ruleMet(r));
+  }
+
+  /** Plain-language list of the rules not yet met (for the "not done yet" message). */
+  unmetGoals() {
+    const out = [];
+    for (const rule of this.rules) {
+      if (this.ruleMet(rule)) continue;
+      if (rule.type === 'reach') out.push('Pip is not on a goal pad');
+      else if (rule.type === 'collect') {
+        const n = this.items.length;
+        out.push(`${n} part${n === 1 ? ' is' : 's are'} still on the floor`);
+      } else if (rule.type === 'deliver') {
+        const n = rule.count ?? this.totalItems;
+        out.push(`${this.delivered} of ${n} part${n === 1 ? '' : 's'} delivered to a bin`);
+      }
+    }
+    return out;
   }
 }

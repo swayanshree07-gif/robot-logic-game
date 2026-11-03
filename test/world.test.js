@@ -60,7 +60,7 @@ test('every level has a working solution', () => {
 });
 
 test('runLevel classifies outcomes', () => {
-  const lvl = LEVELS[0];
+  const lvl = { ...LEVELS[0], tools: undefined }; // all commands allowed
   assert.equal(runLevel('move', lvl).result, 'fail');
   assert.equal(runLevel('right\nmove', lvl).result, 'error'); // bumps wall
   assert.equal(runLevel('move 9', lvl).result, 'win'); // docking on the pad ends the run

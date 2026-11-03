@@ -7,24 +7,57 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <header>
+  <header class="topbar">
     <h1>Night Shift at <span>Ferrolab</span></h1>
-    <label>Level <select id="level-select"></select></label>
+    <label class="picker">Level <select id="level-select"></select></label>
   </header>
-  <main>
-    <section class="stage">
-      <p id="brief" class="brief"></p>
-      <canvas id="board" width="480" height="320" aria-label="Factory floor"></canvas>
-      <p id="status" class="status" role="status">Ready.</p>
-    </section>
-    <section class="code">
-      <label for="editor">Pip's program (Cog)</label>
-      <textarea id="editor" spellcheck="false" rows="16"></textarea>
-      <div class="buttons">
-        <button id="run">▶ Run</button>
-        <button id="step">⏭ Step</button>
-        <button id="stop">■ Reset</button>
+  <main class="level-screen">
+    <section class="stage" aria-labelledby="level-name">
+      <div class="level-head">
+        <span id="level-num" class="level-num"></span>
+        <h2 id="level-name"></h2>
       </div>
+      <p id="brief" class="brief"></p>
+      <p id="goal" class="goal"></p>
+      <div class="board-wrap">
+        <canvas id="board" width="640" height="400" aria-label="Factory floor"></canvas>
+        <div id="banner" class="banner" hidden role="alertdialog" aria-labelledby="banner-title">
+          <div class="banner-card">
+            <h3 id="banner-title"></h3>
+            <p id="banner-text"></p>
+            <div class="banner-buttons">
+              <button id="banner-retry" type="button">↺ Try again</button>
+              <button id="banner-next" type="button" class="primary">Next level ▶</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="hud">
+        <span id="hud-state" class="pill">EDIT</span>
+        <span>Steps <b id="hud-steps">0</b> / <span id="hud-battery">0</span></span>
+        <meter id="hud-meter" min="0" max="1" value="1" aria-label="Battery left"></meter>
+        <span>Line <b id="hud-line">–</b></span>
+      </div>
+      <pre id="status" class="status" role="status">Ready.</pre>
+    </section>
+    <section class="code" aria-label="Program">
+      <div class="code-head">
+        <label for="editor">Pip's program <small>(Cog)</small></label>
+        <span id="size" class="size"></span>
+      </div>
+      <p id="tools" class="tools"></p>
+      <div class="editor" id="editor-root">
+        <div class="gutter" aria-hidden="true"></div>
+        <div class="band" hidden></div>
+        <textarea id="editor" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" rows="16"></textarea>
+      </div>
+      <div class="controls">
+        <button id="run" type="button" class="primary" title="Run / pause (Ctrl+Enter)">▶ Run</button>
+        <button id="step" type="button" title="One step (Ctrl+Shift+Enter)">⏭ Step</button>
+        <button id="stop" type="button" title="Stop here">■ Stop</button>
+        <button id="reset" type="button" title="Back to the start (Esc)">↺ Reset</button>
+      </div>
+      <label class="speed">Speed <select id="speed"></select></label>
       <details>
         <summary>Cog quick reference</summary>
         <pre>move [N]  left  right  grab  drop  wait
@@ -35,7 +68,10 @@ def name … end      name   (call)
 sensors: clear wall clear_left clear_right
          goal item holding bin
          red yellow blue   (floor colour)
-combine: not  and  or  ( )</pre>
+combine: not  and  or  ( )
+
+keys: Ctrl+Enter run/pause · Ctrl+Shift+Enter step
+      Esc reset · Tab / Shift+Tab indent</pre>
       </details>
     </section>
   </main>

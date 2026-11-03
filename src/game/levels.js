@@ -1,9 +1,11 @@
-// Level data. Day 1: a handful of prototype levels; the real 40 arrive per PLAN.md.
-// Every level carries `solution` — tests run it and require a win.
+// Level data (format v1, see src/world/level.js). Prototype levels for now;
+// the real 40 arrive per PLAN.md. Every level carries `solution` — tests run
+// it and require a win — and `tools`, the commands unlocked so far.
 export const LEVELS = [
   {
     id: 'proto-1',
     name: 'Power On',
+    tools: { actions: ['move'], sensors: [], blocks: [] },
     brief: 'Pip just woke up. Roll forward to the charging pad.',
     win: 'reach',
     map: [
@@ -16,6 +18,7 @@ export const LEVELS = [
   {
     id: 'proto-2',
     name: 'Corner Office',
+    tools: { actions: ['move', 'left', 'right'], sensors: [], blocks: [] },
     brief: 'The pad is around the corner. Turn with left / right.',
     win: 'reach',
     map: [
@@ -30,6 +33,7 @@ export const LEVELS = [
   {
     id: 'proto-3',
     name: 'Stairwell',
+    tools: { actions: ['move', 'left', 'right'], sensors: [], blocks: ['repeat'] },
     brief: 'Same steps again and again. A repeat block saves typing.',
     win: 'reach',
     map: [
@@ -45,6 +49,7 @@ export const LEVELS = [
   {
     id: 'proto-4',
     name: 'Long Hall',
+    tools: { actions: ['move', 'left', 'right'], sensors: ['clear', 'wall', 'goal'], blocks: ['repeat', 'while'] },
     brief: "You don't know how long the hall is. Move while the way is clear.",
     win: 'reach',
     map: [
@@ -57,6 +62,7 @@ export const LEVELS = [
   {
     id: 'proto-5',
     name: 'Spare Parts',
+    tools: { sensors: [], blocks: ['repeat', 'def'] },
     brief: 'Carry the spare part to the bin.',
     win: 'deliver',
     map: [
@@ -79,5 +85,59 @@ export const LEVELS = [
       '########',
     ],
     solution: 'while not goal\n  if yellow or blue\n    right\n  end\n  move\nend',
+  },
+  {
+    id: 'proto-7',
+    name: 'Bolt Sweep',
+    brief: "Pip's new hopper holds three parts. Sweep up every bolt in the corridor.",
+    win: 'collect',
+    capacity: 3,
+    tools: { actions: ['move', 'left', 'right', 'grab'], sensors: [], blocks: ['repeat'] },
+    map: [
+      '#########',
+      '#>.o.o.o#',
+      '#########',
+    ],
+    solution: 'repeat 3\n  move 2\n  grab\nend',
+  },
+  {
+    id: 'proto-8',
+    name: 'Round Trip',
+    brief: 'Bin the part, then come back and dock. Rolling over the pad early does not count.',
+    win: ['deliver', 'reach'],
+    map: [
+      '#######',
+      '#G>.oB#',
+      '#######',
+    ],
+    solution: 'move 2\ngrab\nmove\ndrop\nright\nright\nmove 4',
+  },
+  {
+    id: 'proto-9',
+    name: 'Shuttle Run',
+    brief: 'Three parts, one gripper. Shuttle them to the bin one by one — the sensors tell you when to stop.',
+    win: 'deliver',
+    tools: { sensors: ['item', 'bin', 'holding'], blocks: ['repeat', 'while'] },
+    map: [
+      '#######',
+      '#B>ooo#',
+      '#######',
+    ],
+    solution: [
+      'repeat 3',
+      '  while not item',
+      '    move',
+      '  end',
+      '  grab',
+      '  right',
+      '  right',
+      '  while not bin',
+      '    move',
+      '  end',
+      '  drop',
+      '  right',
+      '  right',
+      'end',
+    ].join('\n'),
   },
 ];

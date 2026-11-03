@@ -7,7 +7,9 @@
 // combined (world state, VM state) after an action equals one seen before,
 // the program will repeat the same steps forever and can never win (the win
 // rule only depends on world state, which was already checked last time).
-import { compileSource } from '../lang/compiler.js';
+import { parse } from '../lang/parser.js';
+import { compile, programSize } from '../lang/compiler.js';
+import { checkTools } from '../lang/restrict.js';
 import { VM, DEFAULT_MAX_TICKS } from '../lang/vm.js';
 import { CogError } from '../lang/errors.js';
 import { World } from '../world/world.js';
@@ -17,19 +19,23 @@ export { DEFAULT_MAX_TICKS };
 export class Runner {
   /**
    * @param {string} source  Cog program
-   * @param {object} level   level data ({ map, win })
-   * @param {{maxTicks?: number, detectCycles?: boolean}} [opt]
+   * @param {object} level   level data (format in src/world/level.js)
+   * @param {{maxTicks?: number, detectCycles?: boolean}} [opt]  maxTicks overrides level.maxSteps
    * Never throws for bad programs: check `runner.result` after construction.
    */
-  constructor(source, level, { maxTicks = DEFAULT_MAX_TICKS, detectCycles = true } = {}) {
+  constructor(source, level, { maxTicks = level.maxSteps ?? DEFAULT_MAX_TICKS, detectCycles = true } = {}) {
     this.world = new World(level);
     this.result = null; // null while running, else 'win' | 'fail' | 'error' | 'timeout' | 'loop'
     this.error = null;
     this.vm = null;
     this.detectCycles = detectCycles;
     this.seen = new Map(); // state key -> tick number
+    this.size = 0; // program size in statements (for scoring)
     try {
-      this.vm = new VM(compileSource(source), this.world, { maxTicks });
+      const ast = parse(source);
+      checkTools(ast, level.tools);
+      this.size = programSize(ast);
+      this.vm = new VM(compile(ast), this.world, { maxTicks });
     } catch (e) {
       if (!(e instanceof CogError)) throw e;
       this.finish('error', e);
@@ -77,9 +83,20 @@ export class Runner {
   }
 }
 
+/** Short player-facing sentence for a finished run. */
+export function describeResult(run) {
+  switch (run.result) {
+    case 'win': return `Finished in ${run.ticks} step${run.ticks === 1 ? '' : 's'} with ${run.size} line${run.size === 1 ? '' : 's'} of code.`;
+    case 'fail': return `Program finished, but the job isn't done: ${run.unmet.join('; ')}.`;
+    default: return run.error ? run.error.message : run.result;
+  }
+}
+
 /**
  * Run `source` on `level` to completion.
- * Returns { result, ticks, world, error? } where result is
+ * Returns { result, ticks, size, stats, unmet, world, error? } where
+ *   ticks = actions taken, size = program statements, stats = actions by name,
+ *   unmet = plain-language win rules not met at the end, and result is
  *   win     - level goal reached
  *   fail    - program ended without reaching the goal
  *   error   - parse error or runtime error (e.g. bumped a wall)
@@ -89,7 +106,10 @@ export class Runner {
 export function runLevel(source, level, opt = {}) {
   const r = new Runner(source, level, opt);
   while (!r.done) r.tick();
-  const out = { result: r.result, ticks: r.ticks, world: r.world };
+  const out = {
+    result: r.result, ticks: r.ticks, size: r.size, stats: { ...r.world.stats },
+    unmet: r.world.unmetGoals(), world: r.world,
+  };
   if (r.error) out.error = r.error;
   return out;
 }
