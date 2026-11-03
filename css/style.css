@@ -19,7 +19,8 @@ button:hover { background: #3a4366; }
 button#run { background: var(--accent); color: #241a05; }
 select { background: #0d0f16; color: var(--ink); border: 1px solid #333a52; padding: 4px; border-radius: 4px; }
 .brief { color: var(--dim); margin-top: 0; }
-.status { font-weight: 600; min-height: 1.5em; }
+.status { font-weight: 600; min-height: 1.5em; white-space: pre-wrap; }
+.status.error { font-family: ui-monospace, monospace; font-size: 13px; }
 .status.win { color: var(--ok); }
 .status.error { color: var(--bad); }
 pre { font-size: 12px; color: var(--dim); }

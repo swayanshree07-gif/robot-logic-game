@@ -29,7 +29,7 @@ end`);
   assert.equal(rep.type, 'repeat');
   assert.equal(rep.count, 2);
   assert.equal(rep.body[0].type, 'while');
-  assert.deepEqual(rep.body[0].cond, { type: 'and', left: { type: 'sensor', name: 'clear' }, right: { type: 'not', arg: { type: 'sensor', name: 'goal' } } });
+  assert.deepEqual(rep.body[0].cond, { type: 'and', left: { type: 'sensor', name: 'clear', col: 9 }, right: { type: 'not', arg: { type: 'sensor', name: 'goal', col: 23 } } });
   const iff = rep.body[1];
   assert.equal(iff.branches.length, 2);
   assert.equal(iff.branches[1].cond.type, 'or');
@@ -58,4 +58,24 @@ test('reports errors with line numbers', () => {
   assert.match(err('left 2').message, /takes no arguments/);
   assert.match(err('if clear\nelse\nend\nend').message, /without an open block/);
   assert.match(err('while (clear\nend').message, /missing '\)'/);
+});
+
+test('nodes carry line and column of their first token', () => {
+  const ast = parse('repeat 2\n    move 3\nend\n  hop\ndef hop\n  left\nend');
+  assert.deepEqual([ast.main[0].line, ast.main[0].col], [1, 1]);
+  assert.deepEqual([ast.main[0].body[0].line, ast.main[0].body[0].col], [2, 5]);
+  assert.deepEqual([ast.main[1].line, ast.main[1].col], [4, 3]);
+  assert.deepEqual([ast.functions.hop.line, ast.functions.hop.col], [5, 5]);
+});
+
+test('keywords are case-insensitive and new sensors parse', () => {
+  const ast = parse('WHILE Red or yellow or BLUE or bin\n  Move\nEnd');
+  assert.equal(ast.main[0].body[0].name, 'move');
+});
+
+test('errors carry line, column and length', () => {
+  const e = err('move\n  while clera\n  end');
+  assert.deepEqual([e.line, e.col, e.length], [2, 9, 5]);
+  assert.equal(e.hint, "did you mean 'clear'?");
+  assert.equal(e.kind, 'syntax');
 });

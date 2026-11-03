@@ -1,8 +1,8 @@
-// Browser entry point (Day 1 prototype UI).
+// Browser entry point (prototype UI; the full game shell arrives on Day 4).
 import { LEVELS } from '../game/levels.js';
 import { World } from '../world/world.js';
-import { compileSource } from '../lang/compiler.js';
-import { VM } from '../lang/vm.js';
+import { Runner } from '../game/run.js';
+import { formatError } from '../lang/errors.js';
 import { draw } from './render.js';
 
 const $ = (id) => document.getElementById(id);
@@ -12,7 +12,7 @@ const editor = $('editor');
 const statusEl = $('status');
 
 let level = LEVELS[0];
-let world, vm, timer = null, bump = null, done = false;
+let world, runner, timer = null, bump = null, done = false;
 
 function setStatus(text, kind = '') {
   statusEl.textContent = text;
@@ -21,7 +21,7 @@ function setStatus(text, kind = '') {
 
 function reset() {
   clearInterval(timer); timer = null;
-  world = new World(level); vm = null; bump = null; done = false;
+  world = new World(level); runner = null; bump = null; done = false;
   draw(ctx, world);
   setStatus('Ready.');
 }
@@ -33,56 +33,71 @@ function loadLevel(i) {
   reset();
 }
 
-function ensureVM() {
-  if (vm) return true;
+/** Show an error with its source snippet and select the offending text. */
+function showError(err) {
+  setStatus(formatError(editor.value, err), 'error');
+  if (!err.line) return;
+  const lines = editor.value.split('\n');
+  let start = 0;
+  for (let i = 0; i < err.line - 1; i++) start += lines[i].length + 1;
+  const lineLen = (lines[err.line - 1] || '').length;
+  const from = start + (err.col ? err.col - 1 : 0);
+  const to = err.col ? from + err.length : start + lineLen;
+  editor.focus();
+  editor.setSelectionRange(from, to);
+}
+
+function ensureRunner() {
+  if (runner) return true;
   reset();
-  try {
-    vm = new VM(compileSource(editor.value), world);
-    return true;
-  } catch (e) {
-    setStatus(e.message, 'error');
-    return false;
-  }
+  runner = new Runner(editor.value, level);
+  world = runner.world;
+  if (runner.done) { showError(runner.error); done = true; return false; }
+  return true;
 }
 
 /** Advance one tick; returns false when the run is over. */
 function advance() {
-  const ev = vm.tick();
+  const ev = runner.tick();
   const last = world.log[world.log.length - 1];
-  if (ev.type === 'error') {
-    if (last && last.type === 'bump') bump = last;
-    draw(ctx, world, { bump });
-    setStatus(ev.error.message, 'error');
-    return false;
+  if (ev.type !== 'end') {
+    draw(ctx, world);
+    setStatus(`Step ${runner.ticks} — line ${ev.line}`);
+    return true;
   }
-  draw(ctx, world);
-  if (world.isWon()) { setStatus(`Level complete in ${vm.ticks} steps!`, 'win'); return false; }
-  if (ev.type === 'halt') { setStatus('Program finished, but the job is not done yet.', 'error'); return false; }
-  setStatus(`Step ${vm.ticks} — line ${ev.line}`);
-  return true;
+  if (ev.error && last && last.type === 'bump') bump = last;
+  draw(ctx, world, { bump });
+  if (ev.result === 'win') setStatus(`Level complete in ${runner.ticks} steps!`, 'win');
+  else if (ev.result === 'fail') setStatus('Program finished, but the job is not done yet.', 'error');
+  else showError(ev.error);
+  return false;
 }
 
 function finish() { clearInterval(timer); timer = null; done = true; }
 
 $('run').onclick = () => {
   if (done) reset();
-  if (!ensureVM()) return;
+  if (!ensureRunner()) return;
   clearInterval(timer);
   timer = setInterval(() => { if (!advance()) finish(); }, 250);
 };
 $('step').onclick = () => {
   if (done) reset();
   clearInterval(timer); timer = null;
-  if (!ensureVM()) return;
+  if (!ensureRunner()) return;
   if (!advance()) finish();
 };
 $('stop').onclick = reset;
 editor.addEventListener('input', () => {
   localStorage.setItem(`ferrolab.draft.${level.id}`, editor.value);
-  if (vm) reset();
+  if (runner) reset();
 });
 
 const sel = $('level-select');
 LEVELS.forEach((l, i) => sel.add(new Option(`${i + 1}. ${l.name}`, i)));
 sel.onchange = () => loadLevel(Number(sel.value));
-loadLevel(0);
+// ?level=N (1-based) opens a level directly — handy for testing.
+const start = Math.min(LEVELS.length, Math.max(1, Number(new URLSearchParams(location.search).get('level')) || 1)) - 1;
+sel.value = String(start);
+loadLevel(start);
+if (new URLSearchParams(location.search).get('run') === '1') $('step').click();

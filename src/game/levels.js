@@ -66,4 +66,18 @@ export const LEVELS = [
     ],
     solution: 'def fetch\n  move 2\n  grab\n  move 2\n  drop\nend\nfetch',
   },
+  {
+    id: 'proto-6',
+    name: 'Floor Signs',
+    brief: 'Painted marks show the route. Turn right on yellow or blue, otherwise keep rolling.',
+    win: 'reach',
+    map: [
+      '########',
+      '#>..y###',
+      '####.###',
+      '#G..b###',
+      '########',
+    ],
+    solution: 'while not goal\n  if yellow or blue\n    right\n  end\n  move\nend',
+  },
 ];

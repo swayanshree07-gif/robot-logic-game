@@ -75,3 +75,44 @@ test('action failure stops the VM with the line number', () => {
   assert.equal(ev.error.line, 2);
   assert.equal(vm.status, 'error');
 });
+
+test('step limit stops the VM with code "steps"', () => {
+  const vm = new VM(compileSource('repeat 10\n  move\nend'), fakeHost(), { maxTicks: 4 });
+  let ev;
+  do { ev = vm.tick(); } while (ev.type === 'action');
+  assert.equal(ev.type, 'error');
+  assert.equal(ev.error.code, 'steps');
+  assert.equal(vm.ticks, 4);
+  assert.deepEqual([ev.error.line, ev.error.col], [2, 3]);
+  assert.match(ev.error.message, /battery ran out after 4 steps/);
+});
+
+test('call depth limit is configurable and the call stack is visible', () => {
+  const vm = new VM(compileSource('def a\n  b\nend\ndef b\n  move\n  a\nend\na'), fakeHost(), { maxCallDepth: 6 });
+  vm.tick();
+  assert.deepEqual(vm.callStack, ['a', 'b']);
+  let ev;
+  do { ev = vm.tick(); } while (ev.type === 'action');
+  assert.equal(ev.error.code, 'recursion');
+  assert.match(ev.error.message, /limit 6/);
+  assert.equal(ev.error.kind, 'runtime');
+});
+
+test('runtime errors point at the failing statement column', () => {
+  const host = { act: (n) => (n === 'move' ? { ok: false, error: 'bump', code: 'bump' } : { ok: true }), sense: () => false };
+  const { ev } = runAll('left\nif true\n    move 2\nend', host);
+  assert.deepEqual([ev.error.line, ev.error.col, ev.error.length, ev.error.code], [3, 5, 4, 'bump']);
+});
+
+test('idle-loop error points at a real source line', () => {
+  const { ev } = runAll('move\nwhile not wall\n  if goal\n    left\n  end\nend', fakeHost());
+  assert.equal(ev.error.code, 'idle');
+  assert.ok(ev.error.line >= 2, `line ${ev.error.line}`);
+});
+
+test('stateKey changes with counters and calls', () => {
+  const vm = new VM(compileSource('repeat 3\n  wait\nend'), fakeHost());
+  const keys = new Set();
+  while (vm.status === 'running') { vm.tick(); keys.add(vm.stateKey()); }
+  assert.equal(keys.size, 4);
+});

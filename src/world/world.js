@@ -4,6 +4,7 @@
 //   #  wall            .  floor
 //   G  goal pad        o  spare part (item) on floor
 //   B  bin (drop parts here)
+//   r y b  floor painted red / yellow / blue (read with the colour sensors)
 //   ^ > v <  Pip's start position and facing (floor underneath)
 
 export const DIRS = [
@@ -13,17 +14,20 @@ export const DIRS = [
   { name: 'W', dx: -1, dy: 0 },
 ];
 const START = { '^': 0, '>': 1, 'v': 2, '<': 3 };
-const TILES = { '#': 'wall', '.': 'floor', 'G': 'goal', 'B': 'bin', 'o': 'floor' };
+const TILES = { '#': 'wall', '.': 'floor', 'G': 'goal', 'B': 'bin', 'o': 'floor', 'r': 'floor', 'y': 'floor', 'b': 'floor' };
+export const PAINT = { r: 'red', y: 'yellow', b: 'blue' };
 
 export function parseMap(rows) {
   if (!Array.isArray(rows) || rows.length === 0) throw new Error('map must be a non-empty array of rows');
   const width = rows[0].length;
   const tiles = [];
+  const paint = [];
   const items = [];
   let robot = null;
   rows.forEach((row, y) => {
     if (row.length !== width) throw new Error(`map row ${y} has length ${row.length}, expected ${width}`);
     const line = [];
+    paint.push([...row].map((ch) => PAINT[ch] || null));
     [...row].forEach((ch, x) => {
       if (ch in START) {
         if (robot) throw new Error('map has more than one robot start');
@@ -39,7 +43,7 @@ export function parseMap(rows) {
     tiles.push(line);
   });
   if (!robot) throw new Error('map has no robot start (^ > v <)');
-  return { width, height: rows.length, tiles, items, robot };
+  return { width, height: rows.length, tiles, paint, items, robot };
 }
 
 export class World {
@@ -49,6 +53,7 @@ export class World {
     this.width = m.width;
     this.height = m.height;
     this.tiles = m.tiles;
+    this.paint = m.paint;
     this.items = m.items.map((p) => ({ ...p }));
     this.robot = { ...m.robot, holding: false };
     this.delivered = 0;
@@ -85,6 +90,8 @@ export class World {
       case 'goal': return this.tile(r.x, r.y) === 'goal';
       case 'item': return this.itemAt(r.x, r.y) >= 0;
       case 'holding': return r.holding;
+      case 'bin': return this.tile(r.x, r.y) === 'bin';
+      case 'red': case 'yellow': case 'blue': return this.paint[r.y][r.x] === name;
       default: throw new Error(`unknown sensor ${name}`);
     }
   }
@@ -96,7 +103,7 @@ export class World {
         const p = this.ahead(0);
         if (this.isBlocked(p.x, p.y)) {
           this.log.push({ type: 'bump', x: p.x, y: p.y });
-          return { ok: false, error: 'Pip bumped into a wall' };
+          return { ok: false, error: 'Pip bumped into a wall', code: 'bump' };
         }
         r.x = p.x; r.y = p.y;
         this.log.push({ type: 'move', x: r.x, y: r.y });
@@ -128,6 +135,13 @@ export class World {
       }
       default: return { ok: false, error: `unknown action ${name}` };
     }
+  }
+
+  /** Compact string of all mutable state (used for cycle detection). */
+  stateKey() {
+    const r = this.robot;
+    const items = this.items.map((it) => `${it.x},${it.y}`).sort().join(';');
+    return `${r.x},${r.y},${r.dir},${r.holding ? 1 : 0}|${items}|${this.delivered}`;
   }
 
   isWon() {

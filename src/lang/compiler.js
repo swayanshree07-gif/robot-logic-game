@@ -10,7 +10,8 @@
 //   { op:'call', fn, name }      call function at address fn
 //   { op:'ret' }                 return from function
 //   { op:'halt' }                end of main program
-// Every op carries `line` (source line, 0 for synthetic ops).
+// Every op carries `line` (source line, 0 for synthetic ops) and, for real
+// statements, `col` (1-based column of the statement keyword).
 
 import { parse } from './parser.js';
 
@@ -27,18 +28,18 @@ export function compile(ast) {
   function stmt(s) {
     switch (s.type) {
       case 'action':
-        for (let i = 0; i < s.count; i++) emit({ op: 'act', name: s.name, line: s.line });
+        for (let i = 0; i < s.count; i++) emit({ op: 'act', name: s.name, line: s.line, col: s.col });
         break;
       case 'repeat': {
-        emit({ op: 'push', n: s.count, line: s.line });
-        const head = emit({ op: 'loop', to: -1, line: s.line });
+        emit({ op: 'push', n: s.count, line: s.line, col: s.col });
+        const head = emit({ op: 'loop', to: -1, line: s.line, col: s.col });
         block(s.body);
         emit({ op: 'jmp', to: head, line: 0 });
         code[head].to = code.length;
         break;
       }
       case 'while': {
-        const head = emit({ op: 'jf', cond: s.cond, to: -1, line: s.line });
+        const head = emit({ op: 'jf', cond: s.cond, to: -1, line: s.line, col: s.col });
         block(s.body);
         emit({ op: 'jmp', to: head, line: 0 });
         code[head].to = code.length;
@@ -47,7 +48,7 @@ export function compile(ast) {
       case 'if': {
         const exits = [];
         for (const br of s.branches) {
-          const test = emit({ op: 'jf', cond: br.cond, to: -1, line: br.line });
+          const test = emit({ op: 'jf', cond: br.cond, to: -1, line: br.line, col: br.col });
           block(br.body);
           exits.push(emit({ op: 'jmp', to: -1, line: 0 }));
           code[test].to = code.length;
@@ -57,7 +58,7 @@ export function compile(ast) {
         break;
       }
       case 'call':
-        callFixups.push(emit({ op: 'call', fn: -1, name: s.name, line: s.line }));
+        callFixups.push(emit({ op: 'call', fn: -1, name: s.name, line: s.line, col: s.col }));
         break;
       default:
         throw new Error(`compile: unknown statement ${s.type}`);

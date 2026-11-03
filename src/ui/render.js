@@ -4,6 +4,7 @@ import { DIRS } from '../world/world.js';
 const PAL = {
   floorA: '#262b3d', floorB: '#2a3044', grout: '#1c2030',
   wall: '#454d6b', wallTop: '#5b6488', wallShade: '#323850',
+  red: '#e5484d', yellow: '#f5d90a', blue: '#3e9bff',
   goal: '#5fd39a', bin: '#7a5cff', item: '#ffb547',
   body: '#d9dde8', bodyShade: '#9aa2bb', eye: '#38e1ff', tread: '#30354a',
 };
@@ -35,6 +36,8 @@ export function draw(ctx, world, { bump = null } = {}) {
       ctx.fillStyle = PAL.grout; ctx.fillRect(px, py, s, s);
       ctx.fillStyle = (x + y) % 2 ? PAL.floorA : PAL.floorB;
       ctx.fillRect(px + 1, py + 1, s - 2, s - 2);
+      const paint = world.paint && world.paint[y][x];
+      if (paint) drawPaint(ctx, px, py, s, paint);
       if (t === 'goal') {
         ctx.strokeStyle = PAL.goal; ctx.lineWidth = Math.max(2, s * 0.06);
         ctx.strokeRect(px + s * 0.18, py + s * 0.18, s * 0.64, s * 0.64);
@@ -53,6 +56,25 @@ export function draw(ctx, world, { bump = null } = {}) {
     ctx.strokeStyle = '#ff6b6b'; ctx.lineWidth = 3;
     ctx.strokeRect(ox + bump.x * s + 2, oy + bump.y * s + 2, s - 4, s - 4);
   }
+}
+
+// Painted floor marking. Each colour also has its own shape (stripe, ring,
+// dots) so it can be told apart without relying on hue alone.
+function drawPaint(ctx, px, py, s, colour) {
+  ctx.fillStyle = PAL[colour];
+  ctx.strokeStyle = PAL[colour];
+  ctx.globalAlpha = 0.75;
+  if (colour === 'red') {
+    ctx.fillRect(px + s * 0.1, py + s * 0.42, s * 0.8, s * 0.16);
+  } else if (colour === 'yellow') {
+    ctx.lineWidth = Math.max(2, s * 0.08);
+    ctx.beginPath(); ctx.arc(px + s / 2, py + s / 2, s * 0.3, 0, Math.PI * 2); ctx.stroke();
+  } else {
+    for (const [dx, dy] of [[0.28, 0.28], [0.72, 0.28], [0.28, 0.72], [0.72, 0.72]]) {
+      ctx.beginPath(); ctx.arc(px + s * dx, py + s * dy, s * 0.09, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawPart(ctx, px, py, s) {

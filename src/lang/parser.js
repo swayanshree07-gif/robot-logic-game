@@ -1,10 +1,10 @@
 // Cog language parser: source text -> AST.
 //
 // Cog is line based. One statement per line, blocks are closed with `end`.
-// `#` starts a comment.
+// `#` starts a comment. Keywords are case-insensitive.
 //
 //   move [N]            left   right   grab   drop   wait
-//   repeat N ... end
+//   repeat N [times] ... end
 //   while COND ... end
 //   if COND ... [elif COND ...] [else ...] end
 //   def NAME ... end    (top level only)
@@ -12,72 +12,135 @@
 //
 // COND := OR ;  OR := AND ('or' AND)* ; AND := NOT ('and' NOT)* ;
 // NOT := 'not' NOT | '(' OR ')' | 'true' | 'false' | SENSOR
+//
+// Every AST node carries `line` and `col` (1-based) of its first token so the
+// UI can highlight it and errors can point at it.
 
+import { CogError, didYouMean } from './errors.js';
+
+export { CogError };
 export const ACTIONS = ['move', 'left', 'right', 'grab', 'drop', 'wait'];
-export const SENSORS = ['clear', 'wall', 'clear_left', 'clear_right', 'goal', 'item', 'holding'];
-const KEYWORDS = ['repeat', 'while', 'if', 'elif', 'else', 'end', 'def', 'and', 'or', 'not', 'true', 'false', 'times'];
+export const SENSORS = [
+  'clear', 'wall', 'clear_left', 'clear_right', // range finders
+  'goal', 'item', 'holding', 'bin',             // tile / gripper
+  'red', 'yellow', 'blue',                      // floor colour under Pip
+];
+const BLOCK_WORDS = ['repeat', 'while', 'if', 'elif', 'else', 'end', 'def'];
+const KEYWORDS = [...BLOCK_WORDS, 'and', 'or', 'not', 'true', 'false', 'times'];
+export const RESERVED = [...KEYWORDS, ...ACTIONS, ...SENSORS];
 export const MAX_REPEAT = 999;
 export const MAX_MOVE = 99;
 
-export class CogError extends Error {
-  constructor(message, line) {
-    super(line ? `Line ${line}: ${message}` : message);
-    this.name = 'CogError';
-    this.line = line;
-    this.detail = message;
-  }
-}
-
 const IDENT = /^[a-z_][a-z0-9_]*$/;
 
+// Words people coming from other languages type, with what to write instead.
+const FOREIGN = {
+  for: "Cog loops with 'repeat N' or 'while COND'",
+  loop: "Cog loops with 'repeat N' or 'while COND'",
+  until: "use 'while not COND'",
+  function: "functions start with 'def NAME'",
+  func: "functions start with 'def NAME'",
+  fn: "functions start with 'def NAME'",
+  procedure: "functions start with 'def NAME'",
+  endif: "every block closes with a plain 'end'",
+  endwhile: "every block closes with a plain 'end'",
+  done: "every block closes with a plain 'end'",
+  forward: "to drive forward, use 'move'",
+  turn: "use 'left' or 'right' to turn",
+  pick: "use 'grab' to pick up a part",
+  put: "use 'drop' to put a part down",
+};
+const OPERATORS = { '!': 'not', '&': 'and', '|': 'or', '&&': 'and', '||': 'or', '=': null, '==': null, '!=': null, '<': null, '>': null };
+const operatorError = (t, line) => err(`'${t.raw}' is not part of Cog`, line, t,
+  OPERATORS[t.v] ? `write '${OPERATORS[t.v]}' instead` : 'conditions are just sensor names combined with not / and / or');
+
+/** Split one line into tokens with 1-based columns. Comment already removed. */
 function tokenizeLine(text) {
   const out = [];
-  const re = /\s*([A-Za-z_][A-Za-z0-9_]*|\d+|[()]|\S)/y;
+  const re = /\s*([A-Za-z_][A-Za-z0-9_]*|\d+|&&|\|\||==|!=|\S)/y;
   let m;
-  while ((m = re.exec(text)) !== null) out.push(m[1]);
+  while ((m = re.exec(text)) !== null) {
+    const raw = m[1];
+    const col = m.index + m[0].length - raw.length + 1;
+    out.push({ v: raw.toLowerCase(), raw, col, len: raw.length });
+  }
   return out;
 }
 
-function parseCond(tokens, line) {
+const err = (msg, line, tok, hint = '') =>
+  new CogError(msg, line, { col: tok ? tok.col : 0, length: tok ? tok.len : 1, hint });
+
+function parseCond(tokens, line, after) {
   let i = 0;
   const peek = () => tokens[i];
   const next = () => tokens[i++];
   function or() {
     let left = and();
-    while (peek() === 'or') { next(); left = { type: 'or', left, right: and() }; }
+    while (peek() && peek().v === 'or') { next(); left = { type: 'or', left, right: and() }; }
     return left;
   }
   function and() {
     let left = not();
-    while (peek() === 'and') { next(); left = { type: 'and', left, right: not() }; }
+    while (peek() && peek().v === 'and') { next(); left = { type: 'and', left, right: not() }; }
     return left;
   }
   function not() {
     const t = next();
-    if (t === undefined) throw new CogError('condition is incomplete', line);
-    if (t === 'not') return { type: 'not', arg: not() };
-    if (t === '(') {
+    if (t === undefined) {
+      const prev = tokens[tokens.length - 1] || after;
+      const at = { col: prev.col + prev.len + 1, len: 1 };
+      throw err(tokens.length ? `condition is incomplete after '${prev.raw}'` : `'${after.raw}' needs a condition`,
+        line, at, tokens.length ? '' : `for example '${after.v} clear'`);
+    }
+    const v = t.v;
+    if (v === 'not') return { type: 'not', arg: not() };
+    if (v === '(') {
       const e = or();
-      if (next() !== ')') throw new CogError("missing ')'", line);
+      const close = next();
+      if (!close || close.v !== ')') {
+        const at = close || { col: t.col, len: 1 };
+        throw err("missing ')'", line, at, close ? '' : `the '(' at col ${t.col} is never closed`);
+      }
       return e;
     }
-    if (t === 'true' || t === 'false') return { type: 'const', value: t === 'true' };
-    if (SENSORS.includes(t)) return { type: 'sensor', name: t };
-    throw new CogError(`unknown sensor '${t}' (sensors: ${SENSORS.join(', ')})`, line);
+    if (v === 'true' || v === 'false') return { type: 'const', value: v === 'true' };
+    if (SENSORS.includes(v)) return { type: 'sensor', name: v, col: t.col };
+    if (v in OPERATORS) throw operatorError(t, line);
+    if (/^\d/.test(v)) throw err(`a number can't be a condition`, line, t, `sensors are: ${SENSORS.join(', ')}`);
+    throw err(`unknown sensor '${t.raw}'`, line, t, didYouMean(v, [...SENSORS, 'true', 'false']) || `sensors are: ${SENSORS.join(', ')}`);
   }
   const e = or();
-  if (i < tokens.length) throw new CogError(`unexpected '${tokens[i]}' in condition`, line);
+  if (i < tokens.length) {
+    const t = tokens[i];
+    if (t.v === ':') throw err("Cog doesn't use ':'", line, t, "start the block body on the next line and close it with 'end'");
+    if (t.v === ')') throw err("unexpected ')'", line, t, "there is no '(' for it to close");
+    if (t.v in OPERATORS) throw operatorError(t, line);
+    if (ACTIONS.includes(t.v)) throw err(`unexpected '${t.raw}' in condition`, line, t, 'put the commands of the block on their own lines');
+    if (SENSORS.includes(t.v)) throw err(`unexpected '${t.raw}' in condition`, line, t, "join sensors with 'and' or 'or'");
+    throw err(`unexpected '${t.raw}' in condition`, line, t);
+  }
   return e;
 }
 
-function parseCount(tok, line, max, what) {
-  if (tok === undefined || !/^\d+$/.test(tok)) throw new CogError(`${what} needs a number`, line);
-  const n = Number(tok);
-  if (n < 1 || n > max) throw new CogError(`${what} count must be between 1 and ${max}`, line);
+function parseCount(tok, line, max, what, head) {
+  if (tok === undefined) {
+    throw err(`'${what}' needs a number`, line, { col: head.col + head.len + 1, len: 1 }, `for example '${what} 3'`);
+  }
+  if (what === 'repeat' && (tok.v === 'forever' || tok.v === 'always')) {
+    throw err(`'repeat' needs a number`, line, tok, "to loop forever use 'while true'");
+  }
+  if (tok.v === '-') throw err(`${what} count can't be negative`, line, tok);
+  if (!/^\d+$/.test(tok.v)) {
+    throw err(`'${what}' needs a number, not '${tok.raw}'`, line, tok, what === 'repeat' ? "use 'while COND' to loop on a sensor" : '');
+  }
+  const n = Number(tok.v);
+  if (n < 1 || n > max) throw err(`${what} count must be between 1 and ${max}`, line, tok);
   return n;
 }
 
-/** Parse Cog source into { main: Stmt[], functions: { name: {body, line} } }. */
+function blockOpener(kind) { return kind === 'else' ? 'if' : kind; }
+
+/** Parse Cog source into { main: Stmt[], functions: { name: {name, body, line, col} } }. */
 export function parse(source) {
   const lines = String(source).replace(/\r\n?/g, '\n').split('\n');
   const root = { kind: 'root', body: [], line: 0 };
@@ -90,111 +153,151 @@ export function parse(source) {
     if (b.kind === 'else') return b.elseBody;
     return b.body;
   };
+  const calls = [];
 
   lines.forEach((raw, idx) => {
     const line = idx + 1;
-    const text = raw.replace(/#.*/, '').trim();
-    if (!text) return;
-    const toks = tokenizeLine(text.toLowerCase());
+    const hash = raw.indexOf('#');
+    const toks = tokenizeLine(hash >= 0 ? raw.slice(0, hash) : raw);
+    if (!toks.length) return;
     const [head, ...rest] = toks;
+    const h = head.v;
+    const pos = { line, col: head.col };
 
-    switch (head) {
+    // Characters that signal another language's block syntax.
+    const brace = toks.find((t) => t.v === '{' || t.v === '}');
+    if (brace) throw err(`Cog doesn't use '${brace.v}'`, line, brace, "blocks are closed with 'end'");
+    const colon = rest.find((t) => t.v === ':');
+    if (colon && BLOCK_WORDS.includes(h)) {
+      throw err("Cog doesn't use ':'", line, colon, "start the block body on the next line and close it with 'end'");
+    }
+
+    switch (h) {
       case 'repeat': {
-        const args = rest[rest.length - 1] === 'times' ? rest.slice(0, -1) : rest;
-        if (args.length > 1) throw new CogError(`unexpected '${args[1]}' after repeat count`, line);
-        const node = { type: 'repeat', count: parseCount(args[0], line, MAX_REPEAT, 'repeat'), body: [], line };
+        const args = rest.length && rest[rest.length - 1].v === 'times' ? rest.slice(0, -1) : rest;
+        const count = parseCount(args[0], line, MAX_REPEAT, 'repeat', head);
+        if (args.length > 1) {
+          throw err(`unexpected '${args[1].raw}' after repeat count`, line, args[1],
+            ACTIONS.includes(args[1].v) ? 'put the commands to repeat on the next lines' : '');
+        }
+        const node = { type: 'repeat', count, body: [], ...pos };
         body().push(node);
-        stack.push({ kind: 'repeat', node, body: node.body, line });
+        stack.push({ kind: 'repeat', node, body: node.body, ...pos });
         return;
       }
       case 'while': {
-        const node = { type: 'while', cond: parseCond(rest, line), body: [], line };
+        const node = { type: 'while', cond: parseCond(rest, line, head), body: [], ...pos };
         body().push(node);
-        stack.push({ kind: 'while', node, body: node.body, line });
+        stack.push({ kind: 'while', node, body: node.body, ...pos });
         return;
       }
       case 'if': {
-        const node = { type: 'if', branches: [{ cond: parseCond(rest, line), body: [], line }], elseBody: null, line };
+        const node = { type: 'if', branches: [{ cond: parseCond(rest, line, head), body: [], ...pos }], elseBody: null, ...pos };
         body().push(node);
-        stack.push({ kind: 'if', node, branches: node.branches, line });
+        stack.push({ kind: 'if', node, branches: node.branches, ...pos });
         return;
       }
       case 'elif': {
         const b = top();
-        if (b.kind !== 'if') throw new CogError("'elif' without a matching 'if'", line);
-        b.branches.push({ cond: parseCond(rest, line), body: [], line });
+        if (b.kind === 'else') throw err("'elif' must come before 'else'", line, head);
+        if (b.kind !== 'if') throw err("'elif' without a matching 'if'", line, head);
+        b.branches.push({ cond: parseCond(rest, line, head), body: [], ...pos });
         return;
       }
       case 'else': {
         const b = top();
-        if (b.kind !== 'if') throw new CogError("'else' without a matching 'if'", line);
-        if (rest.length) throw new CogError("'else' takes no condition (use 'elif')", line);
+        if (rest.length && rest[0].v === 'if') throw err("write 'elif' instead of 'else if'", line, { col: head.col, len: rest[0].col + rest[0].len - head.col });
+        if (b.kind === 'else') throw err("this 'if' already has an 'else'", line, head, `it was opened on line ${b.line}`);
+        if (b.kind !== 'if') throw err("'else' without a matching 'if'", line, head);
+        if (rest.length) throw err("'else' takes no condition", line, rest[0], "use 'elif COND' for another test");
         b.node.elseBody = [];
-        stack[stack.length - 1] = { kind: 'else', node: b.node, elseBody: b.node.elseBody, line: b.line };
+        stack[stack.length - 1] = { kind: 'else', node: b.node, elseBody: b.node.elseBody, line: b.line, col: b.col };
         return;
       }
       case 'end': {
-        if (rest.length) throw new CogError(`unexpected '${rest[0]}' after 'end'`, line);
-        if (stack.length === 1) throw new CogError("'end' without an open block", line);
+        if (stack.length === 1) throw err("'end' without an open block", line, head, 'remove it, or check the blocks above');
+        if (rest.length) {
+          throw err(`unexpected '${rest[0].raw}' after 'end'`, line, rest[0], "a plain 'end' closes any block");
+        }
         stack.pop();
         return;
       }
       case 'def': {
-        if (stack.length !== 1) throw new CogError("'def' is only allowed at the top level", line);
-        const name = rest[0];
-        if (!name || !IDENT.test(name)) throw new CogError('def needs a function name', line);
-        if (rest.length > 1) throw new CogError(`unexpected '${rest[1]}' after function name`, line);
-        if (KEYWORDS.includes(name) || ACTIONS.includes(name) || SENSORS.includes(name)) {
-          throw new CogError(`'${name}' is a reserved word`, line);
+        if (stack.length !== 1) {
+          throw err("'def' is only allowed at the top level", line, head,
+            `the '${blockOpener(top().kind)}' from line ${top().line} is still open`);
         }
-        if (functions[name]) throw new CogError(`function '${name}' is already defined`, line);
-        const fn = { name, body: [], line };
+        const nameTok = rest[0];
+        if (!nameTok) throw err("'def' needs a function name", line, { col: head.col + head.len + 1, len: 1 }, "for example 'def hop'");
+        const name = nameTok.v;
+        if (!IDENT.test(name)) throw err(`'${nameTok.raw}' can't be a function name`, line, nameTok, 'use letters, digits and _, starting with a letter');
+        if (RESERVED.includes(name)) throw err(`'${name}' is a reserved word`, line, nameTok, 'pick another function name');
+        if (rest.length > 1) {
+          const t = rest[1];
+          throw err(`unexpected '${t.raw}' after function name`, line, t,
+            t.v === '(' ? 'Cog functions take no parameters, so no brackets are needed' : '');
+        }
+        if (functions[name]) throw err(`function '${name}' is already defined`, line, nameTok, `first defined on line ${functions[name].line}`);
+        const fn = { name, body: [], line, col: nameTok.col };
         functions[name] = fn;
-        stack.push({ kind: 'def', body: fn.body, line });
+        stack.push({ kind: 'def', body: fn.body, ...pos });
         return;
       }
       default:
         break;
     }
 
-    if (ACTIONS.includes(head)) {
-      if (head === 'move' && rest.length) {
-        if (rest.length > 1) throw new CogError(`unexpected '${rest[1]}' after move count`, line);
-        body().push({ type: 'action', name: 'move', count: parseCount(rest[0], line, MAX_MOVE, 'move'), line });
+    if (ACTIONS.includes(h)) {
+      if (rest.length && rest[0].v === '(') {
+        throw err(`'${h}' doesn't need brackets`, line, rest[0], h === 'move' ? "write 'move' or 'move 3'" : `just write '${h}'`);
+      }
+      if (h === 'move' && rest.length) {
+        const n = parseCount(rest[0], line, MAX_MOVE, 'move', head);
+        if (rest.length > 1) throw err(`unexpected '${rest[1].raw}' after move count`, line, rest[1], 'one command per line');
+        body().push({ type: 'action', name: 'move', count: n, ...pos });
       } else {
-        if (rest.length) throw new CogError(`'${head}' takes no arguments`, line);
-        body().push({ type: 'action', name: head, count: 1, line });
+        if (rest.length) {
+          throw err(`'${h}' takes no arguments`, line, rest[0],
+            /^\d+$/.test(rest[0].v) ? `use 'repeat ${rest[0].v}' around it` : 'one command per line');
+        }
+        body().push({ type: 'action', name: h, count: 1, ...pos });
       }
       return;
     }
-    if (KEYWORDS.includes(head)) throw new CogError(`'${head}' cannot start a line`, line);
-    if (IDENT.test(head)) {
-      if (rest.length) throw new CogError(`unexpected '${rest[0]}' after '${head}'`, line);
-      body().push({ type: 'call', name: head, line });
+    if (KEYWORDS.includes(h)) throw err(`'${head.raw}' can't start a line`, line, head);
+    if (SENSORS.includes(h)) throw err(`'${head.raw}' is a sensor, not a command`, line, head, `use it in a condition, e.g. 'if ${h}'`);
+    if (FOREIGN[h]) throw err(`Cog has no '${head.raw}' command`, line, head, FOREIGN[h]);
+    if (/^\d/.test(h)) throw err("a line can't start with a number", line, head, `write 'repeat ${h}' or 'move ${h}'`);
+    if (IDENT.test(h)) {
+      if (rest.length) {
+        const t = rest[0];
+        const typo = didYouMean(h, ACTIONS);
+        if (typo) throw err(`unknown command '${head.raw}'`, line, head, typo);
+        throw err(`unexpected '${t.raw}' after '${head.raw}'`, line, t,
+          t.v === '(' ? 'call a function by its name alone, without brackets' : 'one command per line');
+      }
+      const node = { type: 'call', name: h, ...pos, len: head.len };
+      body().push(node);
+      calls.push(node);
       return;
     }
-    throw new CogError(`I don't understand '${head}'`, line);
+    throw err(`unexpected character '${head.raw}'`, line, head);
   });
 
   if (stack.length > 1) {
     const open = top();
-    const what = open.kind === 'else' ? 'if' : open.kind;
-    throw new CogError(`'${what}' block opened here is missing its 'end'`, open.line);
+    const what = blockOpener(open.kind);
+    throw new CogError(`'${what}' block opened here is missing its 'end'`, open.line,
+      { col: open.col, length: what.length, hint: "add 'end' after the last line of the block" });
   }
 
-  // Check that every call refers to a known function.
-  const checkCalls = (stmts) => {
-    for (const s of stmts) {
-      if (s.type === 'call' && !functions[s.name]) {
-        throw new CogError(`unknown command or function '${s.name}'`, s.line);
-      }
-      if (s.body) checkCalls(s.body);
-      if (s.branches) s.branches.forEach((b) => checkCalls(b.body));
-      if (s.elseBody) checkCalls(s.elseBody);
+  // Every call must refer to a known function.
+  for (const c of calls) {
+    if (!functions[c.name]) {
+      const hint = didYouMean(c.name, [...ACTIONS, ...Object.keys(functions), ...BLOCK_WORDS]);
+      throw new CogError(`unknown command or function '${c.name}'`, c.line, { col: c.col, length: c.len, hint });
     }
-  };
-  checkCalls(root.body);
-  Object.values(functions).forEach((f) => checkCalls(f.body));
+  }
 
   return { main: root.body, functions };
 }

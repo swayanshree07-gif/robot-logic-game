@@ -65,5 +65,27 @@ test('runLevel classifies outcomes', () => {
   assert.equal(runLevel('right\nmove', lvl).result, 'error'); // bumps wall
   assert.equal(runLevel('move 9', lvl).result, 'win'); // docking on the pad ends the run
   assert.equal(runLevel('moove', lvl).result, 'error');
-  assert.equal(runLevel('while true\n  left\nend', lvl, { maxTicks: 50 }).result, 'timeout');
+  assert.equal(runLevel('while true\n  left\nend', lvl).result, 'loop');
+  const t = runLevel('while true\n  left\nend', lvl, { maxTicks: 50, detectCycles: false });
+  assert.equal(t.result, 'timeout');
+  assert.equal(t.ticks, 50);
+  assert.equal(t.error.code, 'steps');
+});
+
+test('floor colour and bin sensors', () => {
+  const w = new World({ map: ['>ryb.B'] });
+  const read = () => ['red', 'yellow', 'blue', 'bin'].filter((n) => w.sense(n)).join(',');
+  const seen = [read()];
+  for (let i = 0; i < 5; i++) { w.act('move'); seen.push(read()); }
+  assert.deepEqual(seen, ['', 'red', 'yellow', 'blue', '', 'bin']);
+});
+
+test('colour tiles are walkable floor, stateKey tracks mutable state', () => {
+  const w = new World({ map: ['>oB'] });
+  assert.equal(w.tiles[0][1], 'floor');
+  const k0 = w.stateKey();
+  w.act('left'); w.act('right');
+  assert.equal(w.stateKey(), k0);
+  w.act('move'); w.act('grab');
+  assert.notEqual(w.stateKey(), k0);
 });
