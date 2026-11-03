@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke screenshots of the level screen in headless Firefox (output: .tmp/shots/).
+# Smoke screenshots of the level screen (incl. a paused breakpoint) in headless Firefox (output: .tmp/shots/).
 # Starts a time-limited http.server, takes one shot per case, stops the server.
 # Usage: scripts/screenshots.sh            (needs python3 + firefox)
 set -u
@@ -24,3 +24,7 @@ shot step   "level=3&code=repeat%203%0A%20%20move%0A%20%20left%0Aend&run=1"
 shot bump   "level=2&code=move%0Amove%0Amove&run=all"
 shot locked "level=1&code=move%202%0Aright&run=all"
 shot win    "level=8&solve=1"
+shot colours "level=6"
+shot carry   "level=8&code=move%202%0Agrab&run=all"
+shot maze    "level=3"
+shot debug   "level=8&code=repeat%201%0A%20%20go%0Aend%0Agrab%0Amove%0Adrop%0Aright%0Aright%0Amove%204%0Adef%20go%0A%20%20move%202%0Aend&bp=11&run=all"

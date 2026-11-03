@@ -38,6 +38,11 @@
         <meter id="hud-meter" min="0" max="1" value="1" aria-label="Battery left"></meter>
         <span>Line <b id="hud-line">–</b></span>
       </div>
+      <div id="debug" class="debug" hidden>
+        <span>Calls <b id="dbg-stack">main</b></span>
+        <span>Repeats left <b id="dbg-loops">–</b></span>
+        <span id="dbg-break" class="brk"></span>
+      </div>
       <pre id="status" class="status" role="status">Ready.</pre>
     </section>
     <section class="code" aria-label="Program">
@@ -71,7 +76,8 @@ sensors: clear wall clear_left clear_right
 combine: not  and  or  ( )
 
 keys: Ctrl+Enter run/pause · Ctrl+Shift+Enter step
-      Esc reset · Tab / Shift+Tab indent</pre>
+      Esc reset · Tab / Shift+Tab indent
+      F9 or click a line number: breakpoint</pre>
       </details>
     </section>
   </main>

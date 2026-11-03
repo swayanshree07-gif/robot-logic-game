@@ -12,6 +12,10 @@
 //   edit/paused --step--> paused (one tick)        any --reset--> edit
 //   running/paused --stop--> done (result 'stopped', board kept as is)
 //   done --run/step--> starts over from the level's start
+//   running --breakpoint--> paused (before the breakpoint line runs; no action taken)
+//
+// Breakpoints are line numbers; they survive reset and program edits. Run
+// pauses *before* a breakpoint line; Run/Resume or Step continue past it.
 import { Runner, describeResult, DEFAULT_MAX_TICKS } from './run.js';
 import { World } from '../world/world.js';
 
@@ -34,6 +38,7 @@ export class PlaySession {
   constructor(level, { speed = 'normal' } = {}) {
     this.level = level;
     this.source = '';
+    this.breakpoints = new Set();
     this.setSpeed(speed);
     this.reset();
   }
@@ -59,7 +64,17 @@ export class PlaySession {
     this.line = 0; // line of the last executed action (0 = none)
     this.bump = null;
     this.acc = 0;
+    this.atBreak = 0; // line of the breakpoint we're paused at (0 = none)
+    this.resumeNext = false;
   }
+
+  toggleBreakpoint(line) {
+    if (this.breakpoints.has(line)) this.breakpoints.delete(line);
+    else this.breakpoints.add(line);
+    return this.breakpoints.has(line);
+  }
+
+  setBreakpoints(lines) { this.breakpoints = new Set(lines); }
 
   /** Start a fresh run; returns false if the program didn't compile (state becomes done). */
   start() {
@@ -73,6 +88,7 @@ export class PlaySession {
   run() {
     if (this.state === 'running') return;
     if (this.state === 'edit' || this.state === 'done') { if (!this.start()) return; }
+    else if (this.state === 'paused') this.resumeNext = true; // continue past a breakpoint here
     this.state = 'running';
     this.acc = this.speed.ms; // take the first step right away
   }
@@ -84,7 +100,7 @@ export class PlaySession {
   step() {
     if (this.state === 'edit' || this.state === 'done') { if (!this.start()) return; }
     this.state = 'paused';
-    this.tick();
+    this.tick(true);
   }
 
   /** Halt the run where it is. */
@@ -94,9 +110,23 @@ export class PlaySession {
     this.result = { result: 'stopped', ticks: this.runner.ticks, size: this.runner.size, unmet: [], error: null, message: 'Stopped.' };
   }
 
-  /** Execute one tick. Returns true if the run continues. */
-  tick() {
-    const ev = this.runner.tick();
+  /**
+   * Execute one tick. Returns true if the run continues.
+   * `resume` = move past a breakpoint on the current line (Step always does).
+   */
+  tick(resume = false) {
+    const ev = this.runner.tick({
+      breakpoints: this.breakpoints.size ? this.breakpoints : null,
+      resume: resume || this.resumeNext,
+    });
+    this.atBreak = 0;
+    this.resumeNext = false;
+    if (ev.type === 'break') {
+      this.state = 'paused';
+      this.line = ev.line;
+      this.atBreak = ev.line;
+      return false;
+    }
     if (ev.type === 'end') { this.end(ev); return false; }
     this.line = ev.line;
     return true;
@@ -143,6 +173,9 @@ export class PlaySession {
       battery: this.runner?.vm?.maxTicks ?? this.level.maxSteps ?? DEFAULT_MAX_TICKS,
       canRun: true,
       runLabel: s === 'running' ? 'Pause' : s === 'paused' ? 'Resume' : 'Run',
+      atBreak: this.atBreak,
+      callStack: this.runner?.vm ? this.runner.vm.callStack : [],
+      loopCounters: this.runner?.vm ? this.runner.vm.loopCounters : [],
       canStep: s !== 'running',
       canStop: s === 'running' || s === 'paused',
       canReset: s !== 'edit',

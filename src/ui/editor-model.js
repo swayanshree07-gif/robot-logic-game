@@ -43,9 +43,11 @@ export function errorRange(text, err) {
  * @param {number} count  @param {{active?:number, error?:number}} marks
  * @returns {{n:number, mark:''|'active'|'error'}[]}
  */
-export function gutterRows(count, { active = 0, error = 0 } = {}) {
+export function gutterRows(count, { active = 0, error = 0, breakpoints = null } = {}) {
   const rows = [];
-  for (let n = 1; n <= count; n++) rows.push({ n, mark: n === error ? 'error' : n === active ? 'active' : '' });
+  for (let n = 1; n <= count; n++) {
+    rows.push({ n, mark: n === error ? 'error' : n === active ? 'active' : '', bp: !!breakpoints && breakpoints.has(n) });
+  }
   return rows;
 }
 

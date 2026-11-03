@@ -29,7 +29,8 @@ intentional change, regenerate it and review the diff.
 
 Dev URL parameters (handy for scripted screenshots): `?level=N` opens level N;
 `&code=...` (URL-encoded) loads that program; `&run=1` takes one step,
-`&run=all` runs it instantly; `&solve=1` runs the level's known solution.
+`&run=all` runs it instantly (finished before the first paint); `&solve=1` runs
+the level's known solution; `&bp=2,5` sets breakpoints.
 
 ## Playing
 Pick a level, write Pip's program, then **Run** (Ctrl+Enter; becomes Pause),
@@ -39,6 +40,18 @@ The running line is highlighted in the editor; errors get a red gutter mark and
 the offending text is selected. A banner reports the result and offers the next
 level after a win. Tab / Shift+Tab indent, Enter keeps indentation. Each level's
 draft is saved in localStorage.
+
+**Debugging:** click a line number (or press F9 on a line) to set a
+breakpoint (red dot). Run pauses *before* that line executes; Resume or Step
+continue past it. While a run is in progress a debug line shows the call stack
+(`main › hop`) and how many passes each active `repeat` has left. Breakpoints
+are saved per level.
+
+**Look:** the factory floor is pixel art drawn entirely in code (16 art pixels
+per tile, scaled by whole numbers): steel floor plates with grates and bolts,
+walls in 3/4 view with pipes, charging-pad goals, purple bins, gear parts, and
+Pip with four facing sprites. Pip glides between tiles, hops when turning and
+lurches when bumping a wall; with `prefers-reduced-motion` it snaps instead.
 
 ## Cog in 30 seconds
 ```
@@ -107,14 +120,18 @@ unreachable goals/parts/bins, unknown fields, bad counts, oversize maps, etc.
   win check, step budget, infinite-loop detection) and `PlaySession`
   (run/pause/step/stop/reset/speed state machine), shared by tests and UI
 - `src/world/level.js` — level format v1: validation, defaults, JSON, goal text
+- `src/ui/art.js` — pure art data/helpers: sprite strings, layout, wall
+  autotile masks, tile hash, easing, `Animator` (tweens Pip between ticks)
 - `src/ui/` — browser code: canvas renderer (art drawn in code), code editor
   (gutter + line band; pure logic in `editor-model.js`) and page wiring
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
-Day 3 of 30 (Days 3 and 4 milestones done): language core with friendly
-positioned errors, step limits and infinite-loop detection; level format v1
-with validation, per-level unlocked commands and reach/collect/deliver win
-rules; 9 prototype levels; a level-screen UI with line-numbered editor,
+Day 4 of 30 (milestones through Day 5 done, Day 6 mostly done): language core
+with friendly positioned errors, step limits and infinite-loop detection; level
+format v1 with validation, per-level unlocked commands and reach/collect/deliver
+win rules; 9 prototype levels; a level-screen UI with line-numbered editor,
 running-line highlight, Run/Pause/Step/Stop/Reset, speed control, HUD and
-result banner. 58 automated tests. Next: code-drawn art pass and animation.
+result banner; code-drawn pixel art with tweened animation; breakpoints with a
+call-stack / loop-counter readout. 79 automated tests. Next: finish the
+debugger panel (variables-style view, step-over/out), then World 1 levels.

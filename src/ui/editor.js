@@ -1,16 +1,23 @@
 // Code editor component: a plain <textarea> with a line-number gutter and a
 // highlight band for the running line / error line. Logic lives in editor-model.js.
-import { lineCount, gutterRows, errorRange, editKey } from './editor-model.js';
+import { lineCount, lineAt, gutterRows, errorRange, editKey } from './editor-model.js';
 
 export class CodeEditor {
   /** @param {HTMLElement} root  element containing .gutter, .band and textarea */
-  constructor(root, { onChange = () => {} } = {}) {
+  constructor(root, { onChange = () => {}, onToggleBreakpoint = null } = {}) {
     this.root = root;
     this.ta = root.querySelector('textarea');
     this.gutter = root.querySelector('.gutter');
     this.band = root.querySelector('.band');
     this.marks = { active: 0, error: 0 };
     this.onChange = onChange;
+    this.breakpoints = new Set();
+    this.onToggleBreakpoint = onToggleBreakpoint;
+    // click a line number (or press F9 on a line) to toggle a breakpoint
+    this.gutter.addEventListener('click', (e) => {
+      const n = Number(e.target.dataset && e.target.dataset.line);
+      if (n && this.onToggleBreakpoint) this.onToggleBreakpoint(n);
+    });
     this.ta.addEventListener('input', () => { this.marks.error = 0; this.refresh(); this.onChange(this.value); });
     this.ta.addEventListener('scroll', () => this.syncScroll());
     this.ta.addEventListener('keydown', (e) => this.key(e));
@@ -21,6 +28,11 @@ export class CodeEditor {
   set value(v) { this.ta.value = v; this.marks = { active: 0, error: 0 }; this.refresh(); }
 
   key(e) {
+    if (e.key === 'F9' && this.onToggleBreakpoint) {
+      e.preventDefault();
+      this.onToggleBreakpoint(lineAt(this.ta.value, this.ta.selectionStart));
+      return;
+    }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const r = editKey(e.key, this.ta.value, this.ta.selectionStart, this.ta.selectionEnd, { shift: e.shiftKey });
     if (!r) return;
@@ -49,16 +61,20 @@ export class CodeEditor {
     this.ta.setSelectionRange(r[0], r[1]);
   }
 
+  setBreakpoints(set) { this.breakpoints = new Set(set); this.refresh(); }
+
   clearMarks() { this.marks = { active: 0, error: 0 }; this.refresh(); }
 
   lineHeight() { return parseFloat(getComputedStyle(this.ta).lineHeight) || 21; }
 
   refresh() {
-    const rows = gutterRows(lineCount(this.ta.value), this.marks);
-    this.gutter.replaceChildren(...rows.map(({ n, mark }) => {
+    const rows = gutterRows(lineCount(this.ta.value), { ...this.marks, breakpoints: this.breakpoints });
+    this.gutter.replaceChildren(...rows.map(({ n, mark, bp }) => {
       const d = document.createElement('div');
       d.textContent = n;
-      if (mark) d.className = mark;
+      d.dataset.line = n;
+      d.title = bp ? 'Breakpoint (click to remove)' : 'Click to pause here (F9)';
+      d.className = `${mark}${bp ? ' bp' : ''}`;
       return d;
     }));
     const line = this.marks.error || this.marks.active;

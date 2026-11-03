@@ -1,116 +1,207 @@
 // Canvas renderer: all art is drawn in code (no image assets).
-import { DIRS } from '../world/world.js';
+//
+// Everything is pixel art at ART_PX pixels per cell (see art.js). The static
+// floor/walls are drawn once per world into an offscreen canvas and scaled up;
+// parts, goal-pad glow and Pip are drawn every frame in art-pixel units.
+import {
+  ART_PX, PALETTE, PIP, PART, PART_SMALL, eachPixel, layout, tileHash, wallMask,
+} from './art.js';
 
-const PAL = {
-  floorA: '#262b3d', floorB: '#2a3044', grout: '#1c2030',
-  wall: '#454d6b', wallTop: '#5b6488', wallShade: '#323850',
+const T = ART_PX;
+const C = {
+  floorA: '#3a4157', floorB: '#3e465d', grout: '#2b3043', floorHi: '#4c5571', occl: '#262a3a',
+  wallTop: '#1d2130', wallHi: '#3a4260', wallFace: '#525c80', wallFaceDk: '#3f4767', wallEdge: '#11131c',
+  pipe: '#7c8496', pipeHi: '#a8b0c2', pipeDk: '#4d5466',
   red: '#e5484d', yellow: '#f5d90a', blue: '#3e9bff',
-  goal: '#5fd39a', bin: '#7a5cff', item: '#ffb547',
-  body: '#d9dde8', bodyShade: '#9aa2bb', eye: '#38e1ff', tread: '#30354a',
+  goal: PALETTE.g, goalDk: '#1f4636', goalCore: '#b6ffd9',
+  bin: '#7a5cff', binDk: '#4e37b8', binHi: '#a08bff', binIn: '#120f24',
+  bump: '#ff6b6b',
 };
 
-export function cellSize(world, canvas) {
-  return Math.floor(Math.min(canvas.width / world.width, canvas.height / world.height));
+const statics = new WeakMap(); // world -> offscreen canvas of floor & walls
+
+function makeCanvas(w, h) {
+  if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h);
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  return c;
 }
 
-export function draw(ctx, world, { bump = null } = {}) {
-  const c = ctx.canvas;
-  const s = cellSize(world, c);
-  const ox = Math.floor((c.width - s * world.width) / 2);
-  const oy = Math.floor((c.height - s * world.height) / 2);
-  ctx.clearRect(0, 0, c.width, c.height);
+function px(ctx, x, y, w, h, colour) { ctx.fillStyle = colour; ctx.fillRect(x, y, w, h); }
+
+function sprite(ctx, rows, x, y) { eachPixel(rows, (sx, sy, col) => px(ctx, x + sx, y + sy, 1, 1, col)); }
+
+/** Static layer, cached per world. Tiles never change during a run. */
+function staticLayer(world) {
+  let c = statics.get(world);
+  if (c) return c;
+  c = makeCanvas(world.width * T, world.height * T);
+  const ctx = c.getContext('2d');
   for (let y = 0; y < world.height; y++) {
     for (let x = 0; x < world.width; x++) {
-      const px = ox + x * s, py = oy + y * s;
       const t = world.tiles[y][x];
-      if (t === 'wall') {
-        ctx.fillStyle = PAL.wallShade; ctx.fillRect(px, py, s, s);
-        ctx.fillStyle = PAL.wall; ctx.fillRect(px, py, s, s * 0.8);
-        ctx.fillStyle = PAL.wallTop; ctx.fillRect(px, py, s, s * 0.12);
-        // rivets
-        ctx.fillStyle = PAL.wallShade;
-        ctx.fillRect(px + s * 0.15, py + s * 0.3, s * 0.08, s * 0.08);
-        ctx.fillRect(px + s * 0.77, py + s * 0.3, s * 0.08, s * 0.08);
-        continue;
-      }
-      ctx.fillStyle = PAL.grout; ctx.fillRect(px, py, s, s);
-      ctx.fillStyle = (x + y) % 2 ? PAL.floorA : PAL.floorB;
-      ctx.fillRect(px + 1, py + 1, s - 2, s - 2);
-      const paint = world.paint && world.paint[y][x];
-      if (paint) drawPaint(ctx, px, py, s, paint);
-      if (t === 'goal') {
-        ctx.strokeStyle = PAL.goal; ctx.lineWidth = Math.max(2, s * 0.06);
-        ctx.strokeRect(px + s * 0.18, py + s * 0.18, s * 0.64, s * 0.64);
-        ctx.fillStyle = PAL.goal;
-        ctx.fillRect(px + s * 0.44, py + s * 0.3, s * 0.12, s * 0.4); // lightning-ish bar
-      } else if (t === 'bin') {
-        ctx.fillStyle = PAL.bin;
-        ctx.fillRect(px + s * 0.2, py + s * 0.3, s * 0.6, s * 0.5);
-        ctx.fillStyle = '#5a40d0'; ctx.fillRect(px + s * 0.15, py + s * 0.24, s * 0.7, s * 0.1);
+      if (t === 'wall') drawWall(ctx, world, x, y);
+      else {
+        drawFloor(ctx, world, x, y);
+        const paint = world.paint && world.paint[y][x];
+        if (paint) drawPaint(ctx, x * T, y * T, paint);
+        if (t === 'goal') drawPadBase(ctx, x * T, y * T);
+        else if (t === 'bin') drawBin(ctx, x * T, y * T);
       }
     }
   }
-  for (const it of world.items) drawPart(ctx, ox + it.x * s, oy + it.y * s, s);
-  drawPip(ctx, ox + world.robot.x * s, oy + world.robot.y * s, s, world.robot);
-  if (bump) {
-    ctx.strokeStyle = '#ff6b6b'; ctx.lineWidth = 3;
-    ctx.strokeRect(ox + bump.x * s + 2, oy + bump.y * s + 2, s - 4, s - 4);
+  statics.set(world, c);
+  return c;
+}
+
+function drawFloor(ctx, world, x, y) {
+  const X = x * T, Y = y * T;
+  px(ctx, X, Y, T, T, (x + y) % 2 ? C.floorA : C.floorB);
+  px(ctx, X, Y, T, 1, C.grout);
+  px(ctx, X, Y, 1, T, C.grout);
+  px(ctx, X + 1, Y + 1, 1, 1, C.floorHi);
+  // ambient occlusion under a wall
+  if (world.tile(x, y - 1) === 'wall') { px(ctx, X, Y, T, 2, C.occl); px(ctx, X, Y + 2, T, 1, C.grout); }
+  if (world.tile(x - 1, y) === 'wall') px(ctx, X, Y, 1, T, C.occl);
+  const h = tileHash(x, y);
+  if (world.tiles[y][x] !== 'floor' || (world.paint && world.paint[y][x])) return;
+  if (h < 0.14) { // bolted plate
+    for (const [a, b] of [[3, 4], [12, 4], [3, 13], [12, 13]]) px(ctx, X + a, Y + b, 1, 1, C.floorHi);
+  } else if (h < 0.22) { // drain grate
+    for (let i = 0; i < 3; i++) px(ctx, X + 5, Y + 6 + i * 2, 6, 1, C.grout);
+  } else if (h < 0.3) { // scuff
+    px(ctx, X + 4 + Math.floor(h * 40) % 6, Y + 9, 3, 1, C.floorHi);
+  }
+}
+
+function drawWall(ctx, world, x, y) {
+  const X = x * T, Y = y * T;
+  const m = wallMask(world, x, y);
+  const openS = !(m & 4), openN = !(m & 1), openE = !(m & 2), openW = !(m & 8);
+  const face = openS ? 5 : 0; // 3/4 view: show the front face where the floor is below
+  px(ctx, X, Y, T, T - face, C.wallTop);
+  if (openN) px(ctx, X, Y, T, 1, C.wallHi);
+  if (openW) px(ctx, X, Y, 1, T - face, C.wallEdge);
+  if (openE) px(ctx, X + T - 1, Y, 1, T - face, C.wallEdge);
+  // pipe along long horizontal runs
+  if ((m & 2) && (m & 8) && tileHash(x, y, 7) < 0.4) {
+    px(ctx, X, Y + 4, T, 3, C.pipe);
+    px(ctx, X, Y + 4, T, 1, C.pipeHi);
+    px(ctx, X, Y + 6, T, 1, C.pipeDk);
+    if (tileHash(x, y, 9) < 0.5) { px(ctx, X + 6, Y + 3, 3, 5, C.pipeDk); px(ctx, X + 7, Y + 3, 1, 5, C.pipe); }
+  } else if (tileHash(x, y, 3) < 0.3) {
+    px(ctx, X + 4, Y + 4, 1, 1, C.wallFace); px(ctx, X + 11, Y + 4, 1, 1, C.wallFace);
+  }
+  if (openS) {
+    const fy = Y + T - face;
+    px(ctx, X, fy, T, face, C.wallFace);
+    px(ctx, X, fy, T, 1, C.wallEdge);
+    for (let i = 3; i < T; i += 5) px(ctx, X + i, fy + 1, 1, face - 1, C.wallFaceDk);
+    px(ctx, X, Y + T - 1, T, 1, C.wallEdge);
   }
 }
 
 // Painted floor marking. Each colour also has its own shape (stripe, ring,
 // dots) so it can be told apart without relying on hue alone.
-function drawPaint(ctx, px, py, s, colour) {
-  ctx.fillStyle = PAL[colour];
-  ctx.strokeStyle = PAL[colour];
-  ctx.globalAlpha = 0.75;
-  if (colour === 'red') {
-    ctx.fillRect(px + s * 0.1, py + s * 0.42, s * 0.8, s * 0.16);
-  } else if (colour === 'yellow') {
-    ctx.lineWidth = Math.max(2, s * 0.08);
-    ctx.beginPath(); ctx.arc(px + s / 2, py + s / 2, s * 0.3, 0, Math.PI * 2); ctx.stroke();
-  } else {
-    for (const [dx, dy] of [[0.28, 0.28], [0.72, 0.28], [0.28, 0.72], [0.72, 0.72]]) {
-      ctx.beginPath(); ctx.arc(px + s * dx, py + s * dy, s * 0.09, 0, Math.PI * 2); ctx.fill();
-    }
+function drawPaint(ctx, X, Y, colour) {
+  const col = C[colour];
+  ctx.globalAlpha = 0.85;
+  if (colour === 'red') { // hazard stripe with diagonal notches
+    px(ctx, X + 1, Y + 6, T - 2, 4, col);
+    for (let i = 2; i < T - 2; i += 4) px(ctx, X + i, Y + 7, 2, 2, C.floorA);
+  } else if (colour === 'yellow') { // ring
+    const r = [[6, 3, 4, 1], [6, 12, 4, 1], [3, 6, 1, 4], [12, 6, 1, 4],
+      [4, 4, 2, 1], [10, 4, 2, 1], [4, 11, 2, 1], [10, 11, 2, 1],
+      [4, 5, 1, 1], [11, 5, 1, 1], [4, 10, 1, 1], [11, 10, 1, 1]];
+    for (const [a, b, w, h] of r) { px(ctx, X + a, Y + b, w, h, col); px(ctx, X + a, Y + b + 1, w, h, col); }
+  } else { // four dots
+    for (const [a, b] of [[3, 3], [10, 3], [3, 10], [10, 10]]) px(ctx, X + a, Y + b, 3, 3, col);
   }
   ctx.globalAlpha = 1;
 }
 
-function drawPart(ctx, px, py, s) {
-  // a little gear
-  const cx = px + s / 2, cy = py + s / 2, r = s * 0.18;
-  ctx.fillStyle = PAL.item;
-  for (let i = 0; i < 8; i++) {
-    const a = (i * Math.PI) / 4;
-    ctx.fillRect(cx + Math.cos(a) * r * 1.3 - s * 0.04, cy + Math.sin(a) * r * 1.3 - s * 0.04, s * 0.08, s * 0.08);
+function drawPadBase(ctx, X, Y) {
+  px(ctx, X + 2, Y + 2, 12, 12, C.goalDk);
+  // corner brackets reach the tile edge, so they stay visible under Pip
+  for (const [a, b, sx, sy] of [[1, 1, 1, 1], [14, 1, -1, 1], [1, 14, 1, -1], [14, 14, -1, -1]]) {
+    px(ctx, X + Math.min(a, a + sx * 3), Y + b, 4, 1, C.goal);
+    px(ctx, X + a, Y + Math.min(b, b + sy * 3), 1, 4, C.goal);
   }
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = PAL.floorA; ctx.beginPath(); ctx.arc(cx, cy, r * 0.4, 0, Math.PI * 2); ctx.fill();
 }
 
-function drawPip(ctx, px, py, s, robot) {
-  const cx = px + s / 2, cy = py + s / 2;
-  const d = DIRS[robot.dir];
+function drawBin(ctx, X, Y) {
+  px(ctx, X + 2, Y + 4, 12, 11, C.binDk);
+  px(ctx, X + 2, Y + 4, 12, 9, C.bin);
+  px(ctx, X + 1, Y + 3, 14, 2, C.binHi);
+  px(ctx, X + 3, Y + 5, 10, 3, C.binIn);
+  px(ctx, X + 4, Y + 10, 8, 1, C.binDk);
+  px(ctx, X + 7, Y + 9, 2, 3, C.binHi); // down-arrow-ish label
+}
+
+function drawPadGlow(ctx, X, Y, time) {
+  const pulse = 0.5 + 0.5 * Math.sin(time / 380);
+  ctx.globalAlpha = 0.35 + 0.45 * pulse;
+  px(ctx, X + 5, Y + 5, 6, 6, C.goal);
+  ctx.globalAlpha = 1;
+  // a small lightning bolt: "charging pad"
+  for (const [a, b, w] of [[8, 4, 2], [7, 5, 2], [6, 6, 3], [6, 7, 4], [8, 8, 2], [8, 9, 1], [7, 10, 1]]) {
+    px(ctx, X + a, Y + b, w, 1, C.goalCore);
+  }
+}
+
+function drawPip(ctx, pose, holding, time) {
+  const X = Math.round(pose.x * T * 4) / 4, Y = Math.round(pose.y * T * 4) / 4;
+  const top = Y - 1 - pose.hop;
+  ctx.globalAlpha = 0.45;
+  px(ctx, X + 3, Y + 14, 10, 2, '#000');
+  ctx.globalAlpha = 1;
+  const carry = holding > 0;
+  const gx = [4, 11, 4, -3][pose.dir], gy = [-3, 7, 9, 7][pose.dir];
+  if (carry && pose.dir === 0) sprite(ctx, PART_SMALL, X + gx, top + gy); // behind Pip when facing away
+  sprite(ctx, PIP[pose.dir], X, top);
+  if (carry && pose.dir !== 0) sprite(ctx, PART_SMALL, X + gx, top + gy);
+  // antenna tip blinks while idle-ish (purely decorative)
+  if (Math.floor(time / 700) % 2) px(ctx, X + 7, top, 2, 1, PALETTE.e);
+}
+
+/**
+ * Draw the board.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {World} world
+ * @param {{bump?: {x,y}, pose?: object, time?: number}} [opt]
+ *   pose: from Animator.pose() (defaults to Pip's exact tile); time: ms for glow.
+ */
+export function draw(ctx, world, { bump = null, pose = null, time = 0 } = {}) {
+  const c = ctx.canvas;
+  const L = layout(world, c.width, c.height);
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(staticLayer(world), L.ox, L.oy, world.width * L.cell, world.height * L.cell);
+
   ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(Math.atan2(d.dy, d.dx) + Math.PI / 2); // art faces north
-  const u = s / 16;
-  ctx.fillStyle = PAL.tread;
-  ctx.fillRect(-6 * u, -5 * u, 2 * u, 11 * u);
-  ctx.fillRect(4 * u, -5 * u, 2 * u, 11 * u);
-  ctx.fillStyle = PAL.bodyShade; ctx.fillRect(-4 * u, -4 * u, 8 * u, 10 * u);
-  ctx.fillStyle = PAL.body; ctx.fillRect(-4 * u, -5 * u, 8 * u, 8 * u);
-  ctx.fillStyle = PAL.eye; ctx.fillRect(-3 * u, -4 * u, 6 * u, 2 * u); // visor shows facing
-  ctx.fillStyle = PAL.tread; ctx.fillRect(-u / 2, 0, u, 4 * u);
-  if (robot.holding) {
-    ctx.fillStyle = PAL.item; ctx.fillRect(-2 * u, -8 * u, 4 * u, 3 * u);
+  ctx.translate(L.ox, L.oy);
+  ctx.scale(L.scale, L.scale);
+  for (let y = 0; y < world.height; y++) {
+    for (let x = 0; x < world.width; x++) if (world.tiles[y][x] === 'goal') drawPadGlow(ctx, x * T, y * T, time);
+  }
+  for (const it of world.items) sprite(ctx, PART, it.x * T, it.y * T);
+  const r = world.robot;
+  const p = pose || { x: r.x, y: r.y, dir: r.dir, hop: 0 };
+  drawPip(ctx, p, r.holding, time);
+  if (bump) {
+    ctx.globalAlpha = 0.9;
+    const X = bump.x * T, Y = bump.y * T;
+    px(ctx, X, Y, T, 1, C.bump); px(ctx, X, Y + T - 1, T, 1, C.bump);
+    px(ctx, X, Y, 1, T, C.bump); px(ctx, X + T - 1, Y, 1, T, C.bump);
+    for (const [a, b] of [[7, 3], [4, 7], [11, 8], [7, 12]]) px(ctx, X + a, Y + b, 2, 2, C.bump);
+    ctx.globalAlpha = 1;
   }
   ctx.restore();
-  if (robot.holding > 1) { // hopper count badge, drawn upright
-    ctx.fillStyle = PAL.eye;
-    ctx.font = `bold ${Math.round(6 * u)}px monospace`;
+
+  if (r.holding > 1) { // hopper count badge, in screen pixels
+    ctx.fillStyle = PALETTE.e;
+    ctx.font = `bold ${Math.max(10, Math.round(L.cell * 0.3))}px monospace`;
     ctx.textAlign = 'right'; ctx.textBaseline = 'top';
-    ctx.fillText(String(robot.holding), cx + 8 * u, cy - 8 * u);
+    ctx.fillText(String(r.holding), L.ox + (p.x + 1) * L.cell - 2, L.oy + p.y * L.cell + 2);
   }
 }

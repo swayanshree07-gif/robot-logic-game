@@ -5,6 +5,7 @@ import { PlaySession, SPEEDS, resultBanner } from '../game/session.js';
 import { describeGoal, normalizeLevel } from '../world/level.js';
 import { formatError } from '../lang/errors.js';
 import { draw } from './render.js';
+import { Animator, tweenMs } from './art.js';
 import { CodeEditor } from './editor.js';
 
 const $ = (id) => document.getElementById(id);
@@ -18,6 +19,8 @@ let index = 0;
 let session = null;
 let shownResult = null; // result object the banner/status currently reflect
 let dirty = true;
+const anim = new Animator();
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
 const editor = new CodeEditor($('editor-root'), {
   onChange(text) {
@@ -25,7 +28,17 @@ const editor = new CodeEditor($('editor-root'), {
     session.setSource(text);
     dirty = true;
   },
+  onToggleBreakpoint(line) {
+    session.toggleBreakpoint(line);
+    editor.setBreakpoints(session.breakpoints);
+    store.set(`bp.${session.level.id}`, JSON.stringify([...session.breakpoints]));
+    dirty = true;
+  },
 });
+
+function loadBreakpoints(id) {
+  try { return JSON.parse(store.get(`bp.${id}`) || '[]').filter(Number.isInteger); } catch { return []; }
+}
 
 function loadLevel(i) {
   index = i;
@@ -43,6 +56,8 @@ function loadLevel(i) {
   $('tools').textContent = `Unlocked — ${parts.join(' · ')}`;
   $('level-select').value = String(i);
   editor.value = store.get(`draft.${level.id}`) ?? '';
+  session.setBreakpoints(loadBreakpoints(level.id));
+  editor.setBreakpoints(session.breakpoints);
   session.setSource(editor.value);
   shownResult = null;
   dirty = true;
@@ -53,10 +68,20 @@ function setStatus(text, kind = '') {
   $('status').className = `status ${kind}`;
 }
 
+/** Draw the board with Pip's tweened pose; called every frame. */
+function drawBoard(now, dt) {
+  anim.sync(session.world, tweenMs(session.speed.ms, reducedMotion.matches));
+  anim.update(dt);
+  draw(ctx, session.world, {
+    bump: anim.busy ? null : session.bump,
+    pose: anim.pose(),
+    time: reducedMotion.matches ? 0 : now,
+  });
+}
+
 /** Sync every control, the HUD, the banner and the board with the session. */
 function render() {
   const v = session.view();
-  draw(ctx, session.world, { bump: session.bump });
 
   $('run').textContent = v.runLabel === 'Pause' ? '❚❚ Pause' : `▶ ${v.runLabel}`;
   $('step').disabled = !v.canStep;
@@ -69,11 +94,19 @@ function render() {
   $('hud-battery').textContent = v.battery;
   $('hud-meter').value = Math.max(0, 1 - v.ticks / v.battery);
   $('hud-line').textContent = v.line || '–';
+  $('debug').hidden = v.state === 'edit' || !session.runner?.vm;
+  $('dbg-stack').textContent = ['main', ...v.callStack].join(' › ');
+  $('dbg-loops').textContent = v.loopCounters.length ? v.loopCounters.join(' / ') : '–';
+  $('dbg-break').textContent = v.atBreak ? `● paused at breakpoint, line ${v.atBreak}` : '';
   const size = session.runner ? session.runner.size : 0;
   $('size').textContent = size ? `size ${size}` : '';
 
   if (v.state === 'edit') { editor.clearMarks(); setStatus('Ready. Press Run, or Step to go one action at a time.'); }
-  else if (v.state !== 'done') { editor.setActive(v.line); setStatus(`Running line ${v.line || '…'}`); }
+  else if (v.state !== 'done') {
+    editor.setActive(v.line);
+    setStatus(v.atBreak ? `Paused before line ${v.atBreak} (breakpoint). Resume or Step to go on.`
+      : v.state === 'paused' ? `Paused after line ${v.line || '…'}.` : `Running line ${v.line || '…'}`);
+  }
 
   if (v.result !== shownResult) {
     shownResult = v.result;
@@ -137,6 +170,7 @@ function frame(now) {
   last = now;
   if (session.update(dt) > 0) dirty = true;
   if (dirty) { dirty = false; render(); }
+  drawBoard(now, dt);
   requestAnimationFrame(frame);
 }
 
@@ -147,6 +181,10 @@ const params = new URLSearchParams(location.search);
 const start = Math.min(LEVELS.length, Math.max(1, Number(params.get('level')) || 1)) - 1;
 loadLevel(start);
 if (params.has('code')) { editor.value = params.get('code'); session.setSource(editor.value); }
+if (params.has('bp')) { // &bp=2,4 sets breakpoints (not saved)
+  session.setBreakpoints(params.get('bp').split(',').map(Number).filter((n) => n > 0));
+  editor.setBreakpoints(session.breakpoints);
+}
 if (params.get('solve') === '1') {
   editor.value = LEVELS[start].solution;
   session.setSource(editor.value);
@@ -154,5 +192,7 @@ if (params.get('solve') === '1') {
   session.run();
 } else if (params.get('run') === '1') session.step();
 else if (params.get('run') === 'all') { session.setSpeed('instant'); session.run(); }
-render(); dirty = false; // first paint without waiting for a frame
+// finish instant runs before the first paint so screenshots never race a frame
+while (session.state === 'running' && session.speed.ms === 0) session.update(0);
+render(); drawBoard(performance.now(), 0); dirty = false; // first paint without waiting for a frame
 requestAnimationFrame(frame);

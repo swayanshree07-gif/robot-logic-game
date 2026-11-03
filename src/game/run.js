@@ -57,11 +57,13 @@ export class Runner {
 
   /**
    * Advance one game tick. Returns the VM event ({type:'action',...}) while the
-   * run continues, or { type: 'end', result, error } once it is over.
+   * run continues, { type: 'break', line } when a breakpoint is reached (no
+   * action taken; see VM.tick for opt), or { type: 'end', result, error } once it is over.
    */
-  tick() {
+  tick(opt) {
     if (this.done) return { type: 'end', result: this.result, error: this.error };
-    const ev = this.vm.tick();
+    const ev = this.vm.tick(opt);
+    if (ev.type === 'break') return ev;
     if (ev.type === 'error') return this.finish(ev.error.code === 'steps' ? 'timeout' : 'error', ev.error);
     if (this.world.isWon()) return this.finish('win');
     if (ev.type === 'halt') return this.finish('fail');

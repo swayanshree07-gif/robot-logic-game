@@ -118,12 +118,26 @@ export class VM {
     return { type: 'op', line: ins.line };
   }
 
-  /** Run until one action happens (one game tick), the program halts or errors. */
-  tick() {
+  /**
+   * Run until one action happens (one game tick), the program halts or errors.
+   * Breakpoints: with opt.breakpoints (a Set of line numbers) the VM stops
+   * *before* executing an instruction on one of those lines and returns
+   * { type: 'break', line }. Pass opt.resume = true to continue from a break:
+   * the line it stopped on is ignored until execution leaves it.
+   */
+  tick({ breakpoints = null, resume = false } = {}) {
     let idle = 0;
     let where = null; // last real source statement seen, for the error
+    let skip = resume ? this.line : 0;
     for (;;) {
-      if (this.code[this.pc] && this.code[this.pc].line) where = this.code[this.pc];
+      const ins = this.code[this.pc];
+      if (ins && ins.line) {
+        where = ins;
+        if (ins.line !== skip) skip = 0;
+        if (breakpoints && breakpoints.has(ins.line) && !skip && this.status === 'running') {
+          return { type: 'break', line: ins.line };
+        }
+      }
       const ev = this.step();
       if (ev.type !== 'op') return ev;
       if (++idle > MAX_IDLE_OPS) {
@@ -132,4 +146,12 @@ export class VM {
       }
     }
   }
+
+  /** Repeat counters of the active repeat blocks, outermost first (iterations left after this one). */
+  get loopCounters() { return [...this.counters]; }
+}
+
+/** Source lines that hold an instruction, i.e. where a breakpoint can trigger. */
+export function breakableLines(program) {
+  return new Set(program.code.map((i) => i.line).filter(Boolean));
 }

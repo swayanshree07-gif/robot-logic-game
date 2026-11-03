@@ -29,6 +29,12 @@ test('gutter marks active and error lines (error wins)', () => {
   assert.deepEqual(gutterRows(2, { active: 1, error: 1 }).map((r) => r.mark), ['error', '']);
 });
 
+test('gutter rows flag breakpoints independently of marks', () => {
+  const g = gutterRows(3, { active: 2, breakpoints: new Set([2, 3, 9]) });
+  assert.deepEqual(g.map((r) => [r.mark, r.bp]), [['', false], ['active', true], ['', true]]);
+  assert.ok(gutterRows(2).every((r) => r.bp === false));
+});
+
 test('Tab / Shift+Tab indent and unindent', () => {
   assert.deepEqual(editKey('Tab', 'move', 0, 0), { text: '  move', start: 2, end: 2 });
   const t = 'a\nb\nc';
