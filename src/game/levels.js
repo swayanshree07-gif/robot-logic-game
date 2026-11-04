@@ -1,7 +1,15 @@
-// Level data (format v1, see src/world/level.js). Prototype levels for now;
-// the real 40 arrive per PLAN.md. Every level carries `solution` — tests run
-// it and require a win — and `tools`, the commands unlocked so far.
-export const LEVELS = [
+// Level data (format v1, see src/world/level.js), grouped into worlds.
+// Every level carries `solution` — tests run it and require a win — and
+// `tools`, the commands unlocked so far.
+//
+//   WORLDS      worlds in play order: { id, name, blurb, levels }
+//   LEVELS      every playable level, flattened in play order (what the UI lists)
+//   PROTOTYPES  the Day 1-3 prototype levels; still used as test fixtures, and the
+//               sensor ones stay playable in "Prototype Bay" until Worlds 2+ replace them
+//   ALL_LEVELS  LEVELS plus prototypes that aren't playable (for level-wide tests)
+import { WORLD1 } from './worlds/w1.js';
+
+export const PROTOTYPES = [
   {
     id: 'proto-1',
     name: 'Power On',
@@ -141,3 +149,27 @@ export const LEVELS = [
     ].join('\n'),
   },
 ];
+
+const proto = (id) => PROTOTYPES.find((l) => l.id === id);
+
+export const WORLDS = [
+  WORLD1,
+  {
+    id: 'lab',
+    name: 'Prototype Bay',
+    blurb: 'Test rigs for sensors and loops. These move into Worlds 2–5 as they are built.',
+    levels: ['proto-4', 'proto-6', 'proto-9', 'proto-7', 'proto-8'].map(proto),
+  },
+];
+
+export const LEVELS = WORLDS.flatMap((w) => w.levels);
+export const ALL_LEVELS = [...LEVELS, ...PROTOTYPES.filter((p) => !LEVELS.includes(p))];
+
+/** World a level belongs to and its 1-based number inside it, e.g. { world, n: 3 }. */
+export function levelPlace(level) {
+  for (const world of WORLDS) {
+    const i = world.levels.indexOf(level);
+    if (i >= 0) return { world, n: i + 1 };
+  }
+  return null;
+}

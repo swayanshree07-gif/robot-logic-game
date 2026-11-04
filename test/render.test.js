@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { World } from '../src/world/world.js';
-import { LEVELS } from '../src/game/levels.js';
+import { ALL_LEVELS as LEVELS } from '../src/game/levels.js';
 import { runLevel } from '../src/game/run.js';
 
 function stubCtx(width, height) {
@@ -33,7 +33,7 @@ test('draw() renders every level, every facing, holding and bump, without throwi
 });
 
 test('draw() works on a finished run and with default pose', () => {
-  const lv = LEVELS[7];
+  const lv = LEVELS.find((l) => l.id === 'proto-8');
   const res = runLevel(lv.solution, lv);
   assert.equal(res.result, 'win');
   const ctx = stubCtx(320, 200);

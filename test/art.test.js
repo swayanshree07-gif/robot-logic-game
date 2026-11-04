@@ -5,7 +5,7 @@ import {
   tileHash, wallMask, easeInOut, tweenMs, Animator,
 } from '../src/ui/art.js';
 import { World } from '../src/world/world.js';
-import { LEVELS } from '../src/game/levels.js';
+import { ALL_LEVELS as LEVELS } from '../src/game/levels.js';
 
 test('sprites are well-formed and the right size', () => {
   assert.equal(PIP.length, 4);

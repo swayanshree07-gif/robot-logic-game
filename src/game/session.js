@@ -13,6 +13,8 @@
 //   running/paused --stop--> done (result 'stopped', board kept as is)
 //   done --run/step--> starts over from the level's start
 //   running --breakpoint--> paused (before the breakpoint line runs; no action taken)
+//   edit/paused --stepOver--> paused (one action, but a call runs to its return)
+//   paused (inside a function) --stepOut--> paused right after the function returns
 //
 // Breakpoints are line numbers; they survive reset and program edits. Run
 // pauses *before* a breakpoint line; Run/Resume or Step continue past it.
@@ -103,6 +105,37 @@ export class PlaySession {
     this.tick(true);
   }
 
+  /**
+   * Step over: like Step, but a function call on the way runs to completion
+   * in one go (pausing before the next line back at this level). Breakpoints
+   * inside the call still pause it.
+   */
+  stepOver() {
+    if (this.state === 'edit' || this.state === 'done') { if (!this.start()) return; }
+    this.state = 'paused';
+    const d = this.runner.vm.depth;
+    if (!this.tick(true)) return;
+    if (this.runner.vm.depth > d) this.runUntil((vm) => vm.depth <= d);
+  }
+
+  /**
+   * Step out: finish the current function and pause right after it returns.
+   * In the main program there is nothing to step out of, so this is Run.
+   */
+  stepOut() {
+    if (this.state === 'edit' || this.state === 'done' || this.runner.vm.depth === 0) { this.run(); return; }
+    this.state = 'paused';
+    const d = this.runner.vm.depth;
+    this.runUntil((vm) => vm.depth < d, true);
+  }
+
+  /** Tick synchronously until `stopWhen(vm)` before a line, a breakpoint or the end. */
+  runUntil(stopWhen, resume = false) {
+    for (let first = true; ; first = false) {
+      if (!this.tick(first && resume, stopWhen)) return;
+    }
+  }
+
   /** Halt the run where it is. */
   stop() {
     if (this.state !== 'running' && this.state !== 'paused') return;
@@ -114,17 +147,18 @@ export class PlaySession {
    * Execute one tick. Returns true if the run continues.
    * `resume` = move past a breakpoint on the current line (Step always does).
    */
-  tick(resume = false) {
+  tick(resume = false, stopWhen = null) {
     const ev = this.runner.tick({
       breakpoints: this.breakpoints.size ? this.breakpoints : null,
       resume: resume || this.resumeNext,
+      stopWhen,
     });
     this.atBreak = 0;
     this.resumeNext = false;
     if (ev.type === 'break') {
       this.state = 'paused';
       this.line = ev.line;
-      this.atBreak = ev.line;
+      if (ev.reason === 'breakpoint') this.atBreak = ev.line;
       return false;
     }
     if (ev.type === 'end') { this.end(ev); return false; }
@@ -176,6 +210,10 @@ export class PlaySession {
       atBreak: this.atBreak,
       callStack: this.runner?.vm ? this.runner.vm.callStack : [],
       loopCounters: this.runner?.vm ? this.runner.vm.loopCounters : [],
+      // debugger panel: [{name, line}] frames and [{line, total, pass}] repeat blocks, outermost first
+      frames: this.runner?.vm ? this.runner.vm.inspect().frames : [],
+      loops: this.runner?.vm ? this.runner.vm.inspect().loops : [],
+      canStepOut: s === 'paused' && Boolean(this.runner?.vm?.depth),
       canStep: s !== 'running',
       canStop: s === 'running' || s === 'paused',
       canReset: s !== 'edit',

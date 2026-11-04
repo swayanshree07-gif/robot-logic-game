@@ -44,10 +44,11 @@ export class CodeEditor {
     this.onChange(this.value);
   }
 
-  /** Highlight the line being executed (0 = none). */
-  setActive(line) {
-    if (line === this.marks.active) return;
+  /** Highlight the line being executed (0 = none); atBreak = paused at a breakpoint there. */
+  setActive(line, atBreak = false) {
+    if (line === this.marks.active && atBreak === !!this.marks.atBreak) return;
     this.marks.active = line;
+    this.marks.atBreak = atBreak;
     this.refresh();
   }
 
@@ -68,18 +69,18 @@ export class CodeEditor {
   lineHeight() { return parseFloat(getComputedStyle(this.ta).lineHeight) || 21; }
 
   refresh() {
-    const rows = gutterRows(lineCount(this.ta.value), { ...this.marks, breakpoints: this.breakpoints });
+    const rows = gutterRows(lineCount(this.ta.value), { active: this.marks.active, error: this.marks.error, breakpoints: this.breakpoints });
     this.gutter.replaceChildren(...rows.map(({ n, mark, bp }) => {
       const d = document.createElement('div');
       d.textContent = n;
       d.dataset.line = n;
       d.title = bp ? 'Breakpoint (click to remove)' : 'Click to pause here (F9)';
-      d.className = `${mark}${bp ? ' bp' : ''}`;
+      d.className = `${mark === 'active' && this.marks.atBreak ? 'break' : mark}${bp ? ' bp' : ''}`;
       return d;
     }));
     const line = this.marks.error || this.marks.active;
     this.band.hidden = !line;
-    this.band.className = `band ${this.marks.error ? 'error' : 'active'}`;
+    this.band.className = `band ${this.marks.error ? 'error' : this.marks.atBreak ? 'break' : 'active'}`;
     this.bandLine = line;
     this.syncScroll();
   }

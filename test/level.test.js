@@ -6,7 +6,7 @@ import {
 } from '../src/world/level.js';
 import { World } from '../src/world/world.js';
 import { runLevel, describeResult } from '../src/game/run.js';
-import { LEVELS } from '../src/game/levels.js';
+import { ALL_LEVELS as LEVELS } from '../src/game/levels.js';
 import { formatError } from '../src/lang/errors.js';
 
 const byId = (id) => LEVELS.find((l) => l.id === id);

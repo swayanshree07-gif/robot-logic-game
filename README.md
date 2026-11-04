@@ -19,7 +19,7 @@ timeout 600 python3 -m http.server 8000   # then open http://localhost:8000
 Requires Node 18+.
 
 ```sh
-node --test test/                 # parser, VM, world, runner, error and level-solution tests
+node --test test/                 # parser, VM, world, runner, debugger, errors, every level's solution, solver
 node scripts/check-static.mjs     # browser files/imports exist and parse
 UPDATE_SNAPSHOTS=1 node --test test/errors.test.js   # regenerate error-message snapshots
 scripts/screenshots.sh            # headless-Firefox smoke shots -> .tmp/shots/ (optional)
@@ -27,7 +27,8 @@ scripts/screenshots.sh            # headless-Firefox smoke shots -> .tmp/shots/ 
 Error-message wording is pinned by `test/snapshots/errors.snap.txt`; after an
 intentional change, regenerate it and review the diff.
 
-Dev URL parameters (handy for scripted screenshots): `?level=N` opens level N;
+Dev URL parameters (handy for scripted screenshots): `?level=N` opens level N
+(position in the full list: 1–8 World 1, 9–13 Prototype Bay);
 `&code=...` (URL-encoded) loads that program; `&run=1` takes one step,
 `&run=all` runs it instantly (finished before the first paint); `&solve=1` runs
 the level's known solution; `&bp=2,5` sets breakpoints.
@@ -42,10 +43,14 @@ level after a win. Tab / Shift+Tab indent, Enter keeps indentation. Each level's
 draft is saved in localStorage.
 
 **Debugging:** click a line number (or press F9 on a line) to set a
-breakpoint (red dot). Run pauses *before* that line executes; Resume or Step
-continue past it. While a run is in progress a debug line shows the call stack
-(`main › hop`) and how many passes each active `repeat` has left. Breakpoints
-are saved per level.
+breakpoint (red dot). Run pauses *before* that line executes (the line gets a
+red band); Resume or Step continue past it. **Step over** (F10) is Step, but a
+function call runs to completion in one go; **Step out** (Shift+F11) finishes
+the current function and pauses right after it returns. While a run is in
+progress the debugger panel lists the call stack (innermost first, with the
+line each function was called from) and every active `repeat` block with its
+line and pass ("pass 2 of 4"). Breakpoints are saved per level and still
+pause step over / step out.
 
 **Look:** the factory floor is pixel art drawn entirely in code (16 art pixels
 per tile, scaled by whole numbers): steel floor plates with grates and bolts,
@@ -112,11 +117,28 @@ bins, all or `count`); a list means all at once. `tools` restricts the commands
 on a level; using a locked one gives a positioned error. Validation catches
 unreachable goals/parts/bins, unknown fields, bad counts, oversize maps, etc.
 
+## Levels
+Levels are grouped into worlds (`src/game/levels.js` → `WORLDS`, `LEVELS`).
+- **World 1 "Boot Sequence"** (`src/game/worlds/w1.js`, 8 levels, no sensors):
+  1-1 Wake-Up Call (`move N`), 1-2 Locker Corner (turns), 1-3 About Face
+  (turning around), 1-4 Stairwell (`repeat`), 1-5 Loose Bolt (`grab`/`drop`),
+  1-6 Restock Run (a job inside a repeat), 1-7 Low Battery (battery = the
+  fewest possible steps, so turns matter), 1-8 Junction Sweep (nested repeat).
+- **Prototype Bay** (P-1…P-5): the earlier sensor/loop test rigs, playable
+  until Worlds 2–5 replace them.
+
+`test/levels.test.js` checks per world that every solution wins, tools unlock
+in order (nothing learned is taken away; each new command is used), the
+level's idea is really used (e.g. nested repeat on 1-8, repeat beats the flat
+program), and that 1-7's battery equals the optimum found by the BFS solver
+(`src/game/solver.js`, which also proves every level solvable).
+
 ## Layout
 - `src/lang/` — parser (source → AST), compiler (AST → bytecode), steppable VM,
   `errors.js` (positions, "did you mean", caret formatting)
 - `src/world/` — grid world: map format, sensors, actions, win rules
-- `src/game/` — level data (each with a tested solution), `Runner` (world + VM,
+- `src/game/` — level data by world (each with a tested solution), BFS
+  `solver.js` (fewest-action wins), `Runner` (world + VM,
   win check, step budget, infinite-loop detection) and `PlaySession`
   (run/pause/step/stop/reset/speed state machine), shared by tests and UI
 - `src/world/level.js` — level format v1: validation, defaults, JSON, goal text
@@ -127,11 +149,12 @@ unreachable goals/parts/bins, unknown fields, bad counts, oversize maps, etc.
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
-Day 4 of 30 (milestones through Day 5 done, Day 6 mostly done): language core
-with friendly positioned errors, step limits and infinite-loop detection; level
-format v1 with validation, per-level unlocked commands and reach/collect/deliver
-win rules; 9 prototype levels; a level-screen UI with line-numbered editor,
-running-line highlight, Run/Pause/Step/Stop/Reset, speed control, HUD and
-result banner; code-drawn pixel art with tweened animation; breakpoints with a
-call-stack / loop-counter readout. 79 automated tests. Next: finish the
-debugger panel (variables-style view, step-over/out), then World 1 levels.
+Day 5 of 30 (milestones through Day 7 done): language core with friendly
+positioned errors, step limits and infinite-loop detection; level format v1
+with validation, per-level unlocked commands and reach/collect/deliver win
+rules; World 1 (8 levels) plus 5 prototype levels; a level-screen UI with
+line-numbered editor, Run/Pause/Step/Stop/Reset, speed control, HUD and result
+banner; code-drawn pixel art with tweened animation; a step debugger with
+breakpoints, step over / step out and a call-stack / repeat-block panel; a BFS
+solver for level verification. 92 automated tests. Next: Day 8 — functions
+polish and par scores (size & steps) for World 1.

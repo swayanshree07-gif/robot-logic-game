@@ -1,6 +1,6 @@
 // Browser entry point: the level screen. All run logic is in PlaySession
 // (src/game/session.js); this file wires it to the DOM and the canvas.
-import { LEVELS } from '../game/levels.js';
+import { LEVELS, WORLDS, levelPlace } from '../game/levels.js';
 import { PlaySession, SPEEDS, resultBanner } from '../game/session.js';
 import { describeGoal, normalizeLevel } from '../world/level.js';
 import { formatError } from '../lang/errors.js';
@@ -45,9 +45,11 @@ function loadLevel(i) {
   const level = LEVELS[i];
   const speed = store.get('speed') || 'normal';
   session = new PlaySession(level, { speed: SPEEDS.some((s) => s.id === speed) ? speed : 'normal' });
-  $('level-num').textContent = `${String(i + 1).padStart(2, '0')}`;
+  const place = levelPlace(level);
+  $('level-num').textContent = place ? `${worldTag(place.world)}-${place.n}` : String(i + 1);
+  $('level-num').title = place ? place.world.name : '';
   $('level-name').textContent = level.name;
-  $('brief').textContent = level.brief;
+  setRichText($('brief'), level.brief);
   $('goal').textContent = `Goal: ${describeGoal(level)}`;
   const t = normalizeLevel(level).tools;
   const parts = [`commands: ${t.actions.join(' ')}`];
@@ -61,6 +63,19 @@ function loadLevel(i) {
   session.setSource(editor.value);
   shownResult = null;
   dirty = true;
+}
+
+/** Short world label for level numbers: 1..5, or P for the prototype bay. */
+const worldTag = (w) => (w.id === 'lab' ? 'P' : String(WORLDS.indexOf(w) + 1));
+
+/** Text with `backtick` spans shown as <code> (built with DOM nodes, never innerHTML). */
+function setRichText(el, text) {
+  el.replaceChildren(...String(text).split('`').map((part, i) => {
+    if (i % 2 === 0) return document.createTextNode(part);
+    const c = document.createElement('code');
+    c.textContent = part;
+    return c;
+  }));
 }
 
 function setStatus(text, kind = '') {
@@ -95,15 +110,15 @@ function render() {
   $('hud-meter').value = Math.max(0, 1 - v.ticks / v.battery);
   $('hud-line').textContent = v.line || '–';
   $('debug').hidden = v.state === 'edit' || !session.runner?.vm;
-  $('dbg-stack').textContent = ['main', ...v.callStack].join(' › ');
-  $('dbg-loops').textContent = v.loopCounters.length ? v.loopCounters.join(' / ') : '–';
-  $('dbg-break').textContent = v.atBreak ? `● paused at breakpoint, line ${v.atBreak}` : '';
+  $('step-over').disabled = !v.canStep;
+  $('step-out').disabled = !v.canStepOut;
+  renderDebugger(v);
   const size = session.runner ? session.runner.size : 0;
   $('size').textContent = size ? `size ${size}` : '';
 
   if (v.state === 'edit') { editor.clearMarks(); setStatus('Ready. Press Run, or Step to go one action at a time.'); }
   else if (v.state !== 'done') {
-    editor.setActive(v.line);
+    editor.setActive(v.line, Boolean(v.atBreak));
     setStatus(v.atBreak ? `Paused before line ${v.atBreak} (breakpoint). Resume or Step to go on.`
       : v.state === 'paused' ? `Paused after line ${v.line || '…'}.` : `Running line ${v.line || '…'}`);
   }
@@ -112,6 +127,22 @@ function render() {
     shownResult = v.result;
     showResult(v.result);
   }
+}
+
+const li = (html, cls = '') => { const e = document.createElement('li'); e.innerHTML = html; e.className = cls; return e; };
+const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+
+/** Debugger panel: call stack (innermost first) and active repeat blocks (innermost first). */
+function renderDebugger(v) {
+  const frames = [...v.frames].reverse();
+  $('dbg-frames').replaceChildren(...frames.map((f, i) => li(f.line
+    ? `<b>${esc(f.name)}</b> <span>called from line ${f.line}</span>`
+    : '<b>main</b> <span>program</span>', i === 0 ? 'top' : '')));
+  const loops = [...v.loops].reverse();
+  $('dbg-loops').replaceChildren(...(loops.length
+    ? loops.map((l, i) => li(`line ${l.line}: pass <b>${l.pass}</b> of ${l.total}`, i === 0 ? 'top' : ''))
+    : [li('none running')]));
+  $('dbg-break').textContent = v.atBreak ? `● paused at breakpoint, line ${v.atBreak}` : '';
 }
 
 function showResult(result) {
@@ -141,6 +172,8 @@ $('run').onclick = act(() => session.toggle());
 $('step').onclick = act(() => session.step());
 $('stop').onclick = act(() => session.stop());
 $('reset').onclick = act(() => session.reset());
+$('step-over').onclick = act(() => session.stepOver());
+$('step-out').onclick = act(() => session.stepOut());
 $('banner-retry').onclick = act(() => { session.reset(); editor.ta.focus(); });
 $('banner-next').onclick = () => loadLevel(Math.min(index + 1, LEVELS.length - 1));
 
@@ -153,6 +186,12 @@ document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
     e.preventDefault();
     (e.shiftKey ? $('step') : $('run')).click();
+  } else if (e.key === 'F10' && !e.shiftKey) {
+    e.preventDefault();
+    $('step-over').click();
+  } else if (e.key === 'F11' && e.shiftKey) {
+    e.preventDefault();
+    $('step-out').click();
   } else if (e.key === 'Escape') {
     e.preventDefault();
     $('reset').click();
@@ -160,7 +199,12 @@ document.addEventListener('keydown', (e) => {
 });
 
 const sel = $('level-select');
-LEVELS.forEach((l, i) => sel.add(new Option(`${i + 1}. ${l.name}`, i)));
+WORLDS.forEach((w) => {
+  const group = document.createElement('optgroup');
+  group.label = `${worldTag(w)}. ${w.name}`;
+  w.levels.forEach((l, n) => group.append(new Option(`${worldTag(w)}-${n + 1} ${l.name}`, LEVELS.indexOf(l))));
+  sel.append(group);
+});
 sel.onchange = () => loadLevel(Number(sel.value));
 
 // --- main loop ---

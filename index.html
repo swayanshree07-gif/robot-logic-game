@@ -38,10 +38,16 @@
         <meter id="hud-meter" min="0" max="1" value="1" aria-label="Battery left"></meter>
         <span>Line <b id="hud-line">–</b></span>
       </div>
-      <div id="debug" class="debug" hidden>
-        <span>Calls <b id="dbg-stack">main</b></span>
-        <span>Repeats left <b id="dbg-loops">–</b></span>
-        <span id="dbg-break" class="brk"></span>
+      <div id="debug" class="debug" hidden aria-label="Debugger">
+        <div class="dbg-col">
+          <h4>Call stack</h4>
+          <ol id="dbg-frames"></ol>
+        </div>
+        <div class="dbg-col">
+          <h4>Repeat blocks</h4>
+          <ul id="dbg-loops"></ul>
+        </div>
+        <p id="dbg-break" class="brk"></p>
       </div>
       <pre id="status" class="status" role="status">Ready.</pre>
     </section>
@@ -62,6 +68,10 @@
         <button id="stop" type="button" title="Stop here">■ Stop</button>
         <button id="reset" type="button" title="Back to the start (Esc)">↺ Reset</button>
       </div>
+      <div class="controls dbg-controls">
+        <button id="step-over" type="button" title="Step, but run a whole function call at once (F10)">↷ Step over</button>
+        <button id="step-out" type="button" title="Finish the current function (Shift+F11)">↥ Step out</button>
+      </div>
       <label class="speed">Speed <select id="speed"></select></label>
       <details>
         <summary>Cog quick reference</summary>
@@ -77,7 +87,8 @@ combine: not  and  or  ( )
 
 keys: Ctrl+Enter run/pause · Ctrl+Shift+Enter step
       Esc reset · Tab / Shift+Tab indent
-      F9 or click a line number: breakpoint</pre>
+      F9 or click a line number: breakpoint
+      F10 step over · Shift+F11 step out</pre>
       </details>
     </section>
   </main>

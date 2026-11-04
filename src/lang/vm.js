@@ -28,6 +28,7 @@ export class VM {
     this.maxCallDepth = maxCallDepth;
     this.pc = 0;
     this.counters = [];
+    this.counterIns = []; // the push instruction of each active repeat (parallel to counters)
     this.calls = [];
     this.status = 'running'; // running | halted | error
     this.error = null;
@@ -87,18 +88,19 @@ export class VM {
             { hint: 'does one of your loops never end?' });
         }
         this.opsExecuted++;
+        const depth = this.calls.length;
         const r = this.host.act(ins.name);
         this.ticks++;
         this.pc++;
         if (!r.ok) return this.fail(r.error, r.code || 'action', { ins });
-        return { type: 'action', name: ins.name, ok: true, line: ins.line, col: ins.col };
+        return { type: 'action', name: ins.name, ok: true, line: ins.line, col: ins.col, depth };
       }
       case 'jmp': this.pc = ins.to; break;
       case 'jf': this.pc = this.evalCond(ins.cond) ? this.pc + 1 : ins.to; break;
-      case 'push': this.counters.push(ins.n); this.pc++; break;
+      case 'push': this.counters.push(ins.n); this.counterIns.push(ins); this.pc++; break;
       case 'loop': {
         const top = this.counters.length - 1;
-        if (this.counters[top] === 0) { this.counters.pop(); this.pc = ins.to; }
+        if (this.counters[top] === 0) { this.counters.pop(); this.counterIns.pop(); this.pc = ins.to; }
         else { this.counters[top]--; this.pc++; }
         break;
       }
@@ -107,7 +109,7 @@ export class VM {
           return this.fail(`too many nested calls (limit ${this.maxCallDepth})`, 'recursion',
             { hint: `is '${ins.name}' calling itself forever?` });
         }
-        this.calls.push({ ret: this.pc + 1, name: ins.name });
+        this.calls.push({ ret: this.pc + 1, name: ins.name, line: ins.line });
         this.pc = ins.fn;
         break;
       case 'ret': this.pc = this.calls.pop().ret; break;
@@ -124,8 +126,11 @@ export class VM {
    * *before* executing an instruction on one of those lines and returns
    * { type: 'break', line }. Pass opt.resume = true to continue from a break:
    * the line it stopped on is ignored until execution leaves it.
+   * opt.stopWhen(vm) is checked the same way (before each source line) and
+   * returns { type: 'break', line, reason: 'step' } when true; the debugger
+   * uses it for step over / step out. Breakpoints report reason 'breakpoint'.
    */
-  tick({ breakpoints = null, resume = false } = {}) {
+  tick({ breakpoints = null, resume = false, stopWhen = null } = {}) {
     let idle = 0;
     let where = null; // last real source statement seen, for the error
     let skip = resume ? this.line : 0;
@@ -134,8 +139,9 @@ export class VM {
       if (ins && ins.line) {
         where = ins;
         if (ins.line !== skip) skip = 0;
-        if (breakpoints && breakpoints.has(ins.line) && !skip && this.status === 'running') {
-          return { type: 'break', line: ins.line };
+        if (this.status === 'running') {
+          if (stopWhen && stopWhen(this)) return { type: 'break', line: ins.line, reason: 'step' };
+          if (breakpoints && breakpoints.has(ins.line) && !skip) return { type: 'break', line: ins.line, reason: 'breakpoint' };
         }
       }
       const ev = this.step();
@@ -149,6 +155,21 @@ export class VM {
 
   /** Repeat counters of the active repeat blocks, outermost first (iterations left after this one). */
   get loopCounters() { return [...this.counters]; }
+
+  /** Current call depth (0 = main program). */
+  get depth() { return this.calls.length; }
+
+  /**
+   * Debugger snapshot, outermost first:
+   *   frames: [{ name, line }]   name 'main' (line 0), then each call with the line it was called from
+   *   loops:  [{ line, total, pass }]  each active repeat block: header line, count, current pass (1-based)
+   */
+  inspect() {
+    return {
+      frames: [{ name: 'main', line: 0 }, ...this.calls.map((c) => ({ name: c.name, line: c.line }))],
+      loops: this.counterIns.map((ins, i) => ({ line: ins.line, total: ins.n, pass: ins.n - this.counters[i] })),
+    };
+  }
 }
 
 /** Source lines that hold an instruction, i.e. where a breakpoint can trigger. */

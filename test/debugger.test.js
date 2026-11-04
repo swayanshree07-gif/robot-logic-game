@@ -68,7 +68,7 @@ test('call stack and loop counters are visible at a breakpoint', () => {
   const vm = new VM(compileSource(PROG), host());
   assert.equal(vm.tick({ breakpoints: new Set([9]) }).type, 'action'); // move on line 2
   const ev = vm.tick({ breakpoints: new Set([9]) });
-  assert.deepEqual(ev, { type: 'break', line: 9 });
+  assert.deepEqual(ev, { type: 'break', line: 9, reason: 'breakpoint' });
   assert.deepEqual(vm.callStack, ['hop']);
   assert.deepEqual(vm.loopCounters, [1]); // one more pass after this one
   assert.equal(vm.ticks, 1);
@@ -123,4 +123,87 @@ test('session: Step from the start passes a breakpoint on the first line', () =>
   s.run(); s.update(1000);
   assert.equal(s.state, 'paused');
   assert.equal(s.view().ticks, 2);
+});
+
+// --- step over / step out / inspector (Day 6) ---
+const NEST = [
+  'hop',        // 1
+  'move',       // 2
+  'hop',        // 3
+  'def hop',    // 4
+  '  right',    // 5
+  '  inner',    // 6
+  '  left',     // 7
+  'end',        // 8
+  'def inner',  // 9
+  '  wait',     // 10
+  '  wait',     // 11
+  'end',        // 12
+].join('\n');
+const OPEN = { id: 'o', name: 'O', map: ['#######', '#>...G#', '#######'], win: 'reach' };
+
+function nestSession() {
+  const s = new PlaySession(OPEN);
+  s.setSource(NEST);
+  return s;
+}
+
+test('VM action events carry the call depth they ran at', () => {
+  const vm = new VM(compileSource(NEST), host());
+  const depths = [];
+  for (let ev = vm.tick(); ev.type === 'action'; ev = vm.tick()) depths.push([ev.line, ev.depth]);
+  assert.deepEqual(depths, [[5, 1], [10, 2], [11, 2], [7, 1], [2, 0], [5, 1], [10, 2], [11, 2], [7, 1]]);
+});
+
+test('VM stopWhen pauses before the first line where it holds', () => {
+  const vm = new VM(compileSource(NEST), host());
+  vm.tick(); // right (inside hop)
+  const ev = vm.tick({ stopWhen: (v) => v.depth === 0 });
+  assert.deepEqual(ev, { type: 'action', name: 'wait', ok: true, line: 10, col: 3, depth: 2 });
+  vm.tick(); vm.tick(); // wait, left
+  assert.deepEqual(vm.tick({ stopWhen: (v) => v.depth === 0 }), { type: 'break', line: 2, reason: 'step' });
+});
+
+test('session: Step over runs a whole call and pauses back at the same level', () => {
+  const s = nestSession();
+  s.stepOver();
+  assert.deepEqual([s.state, s.view().ticks, s.line, s.view().atBreak], ['paused', 4, 2, 0]);
+  assert.deepEqual(s.view().frames, [{ name: 'main', line: 0 }]);
+  s.stepOver(); // a plain action: same as Step
+  assert.equal(s.view().ticks, 5);
+  s.stepOver(); // last call: runs to the end of the program
+  assert.equal(s.state, 'done');
+  assert.equal(s.view().ticks, 9);
+});
+
+test('session: Step over still stops at a breakpoint inside the call', () => {
+  const s = nestSession();
+  s.setBreakpoints([11]);
+  s.stepOver();
+  assert.deepEqual([s.state, s.view().ticks, s.view().atBreak], ['paused', 2, 11]);
+  assert.deepEqual(s.view().frames.map((f) => `${f.name}@${f.line}`), ['main@0', 'hop@1', 'inner@6']);
+});
+
+test('session: Step out finishes the current function', () => {
+  const s = nestSession();
+  s.step(); s.step(); // right, wait (now inside inner)
+  assert.equal(s.view().canStepOut, true);
+  assert.deepEqual(s.view().frames.map((f) => f.name), ['main', 'hop', 'inner']);
+  s.stepOut();
+  assert.deepEqual([s.state, s.view().ticks, s.line], ['paused', 3, 7]);
+  assert.deepEqual(s.view().frames.map((f) => f.name), ['main', 'hop']);
+  s.stepOut();
+  assert.deepEqual([s.state, s.view().ticks, s.line], ['paused', 4, 2]);
+  assert.equal(s.view().canStepOut, false);
+  s.stepOut(); // in main: behaves like Run
+  assert.equal(s.state, 'running');
+});
+
+test('inspector lists active repeat blocks with their line and pass', () => {
+  const s = new PlaySession(OPEN);
+  s.setSource('repeat 3\n  repeat 2\n    wait\n  end\nend');
+  s.step();
+  assert.deepEqual(s.view().loops, [{ line: 1, total: 3, pass: 1 }, { line: 2, total: 2, pass: 1 }]);
+  s.step(); s.step();
+  assert.deepEqual(s.view().loops, [{ line: 1, total: 3, pass: 2 }, { line: 2, total: 2, pass: 1 }]);
 });

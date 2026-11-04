@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PlaySession, SPEEDS, MAX_TICKS_PER_UPDATE, resultBanner } from '../src/game/session.js';
-import { LEVELS } from '../src/game/levels.js';
+import { ALL_LEVELS as LEVELS } from '../src/game/levels.js';
 
 const hall = { id: 't', name: 'T', map: ['#######', '#>...G#', '#######'], win: 'reach' };
 

@@ -1,0 +1,154 @@
+// World 1 — "Boot Sequence". Pip's first night shift: one idea per level.
+//   1 sequence of moves (`move N`)   2 turning            3 turning around
+//   4 repeat                         5 grab / drop        6 repeat with a job inside
+//   7 efficiency: every action costs battery            8 nested repeat
+// No sensors in this world: Pip follows the plan exactly, so planning is the skill.
+// Every level's `solution` is run by test/levels.test.js.
+const MOVE = ['move'];
+const TURN = ['move', 'left', 'right'];
+const HANDS = ['move', 'left', 'right', 'grab', 'drop'];
+const tools = (actions, blocks = []) => ({ actions, sensors: [], blocks });
+
+export const WORLD1 = {
+  id: 'w1',
+  name: 'Boot Sequence',
+  blurb: 'Pip boots up for the night shift. Learn to plan a route, step by step.',
+  levels: [
+    {
+      id: 'w1-1',
+      name: 'Wake-Up Call',
+      brief: 'Pip is awake but nearly flat. Roll forward onto the charging pad. `move 6` moves six tiles in one line.',
+      hint: 'Count the floor tiles between Pip and the pad.',
+      tools: tools(MOVE),
+      win: 'reach',
+      map: [
+        '#########',
+        '#>.....G#',
+        '#########',
+      ],
+      solution: 'move 6',
+    },
+    {
+      id: 'w1-2',
+      name: 'Locker Corner',
+      brief: 'The corridor bends past the lockers. `left` and `right` turn Pip on the spot, a quarter turn each.',
+      hint: 'Turns are relative to where Pip is facing, not to the screen.',
+      tools: tools(TURN),
+      win: 'reach',
+      map: [
+        '#########',
+        '#>...####',
+        '####.####',
+        '####....#',
+        '#######.#',
+        '#######G#',
+        '#########',
+      ],
+      solution: 'move 3\nright\nmove 2\nleft\nmove 3\nright\nmove 2',
+    },
+    {
+      id: 'w1-3',
+      name: 'About Face',
+      brief: 'Pip parked nose-first against the wall. Turn around, then take the long way round to the pad.',
+      hint: 'Two right turns (or two lefts) make Pip face the other way.',
+      tools: tools(TURN),
+      win: 'reach',
+      map: [
+        '##########',
+        '#<.......#',
+        '########.#',
+        '#G.......#',
+        '##########',
+      ],
+      solution: 'right\nright\nmove 7\nright\nmove 2\nright\nmove 7',
+    },
+    {
+      id: 'w1-4',
+      name: 'Stairwell',
+      brief: 'Five steps down, all the same. Write one step inside `repeat 5 … end` instead of five times.',
+      hint: 'One step is: move, right, move, left. Then one last move to the pad.',
+      tools: tools(TURN, ['repeat']),
+      win: 'reach',
+      map: [
+        '############',
+        '#>.#########',
+        '##..########',
+        '###..#######',
+        '####..######',
+        '#####..#####',
+        '######.G####',
+        '############',
+      ],
+      solution: 'repeat 5\n  move\n  right\n  move\n  left\nend\nmove',
+    },
+    {
+      id: 'w1-5',
+      name: 'Loose Bolt',
+      brief: 'A part fell off the line. `grab` picks up the part Pip is standing on, `drop` on a bin delivers it.',
+      hint: 'Grab on the part tile, drop on the bin tile.',
+      tools: tools(HANDS, ['repeat']),
+      win: 'deliver',
+      map: [
+        '#######',
+        '#>.o..#',
+        '#####.#',
+        '#####B#',
+        '#######',
+      ],
+      solution: 'move 2\ngrab\nmove 2\nright\nmove 2\ndrop',
+    },
+    {
+      id: 'w1-6',
+      name: 'Restock Run',
+      brief: 'Four parts, each right above its own bin. The job is the same every time: put it inside a repeat.',
+      hint: 'Make each pass end where the next one starts: back in the top row, facing east.',
+      tools: tools(HANDS, ['repeat']),
+      win: 'deliver',
+      map: [
+        '###########',
+        '#>.o.o.o.o#',
+        '###B#B#B#B#',
+        '###########',
+      ],
+      solution: 'repeat 4\n  move 2\n  grab\n  right\n  move\n  drop\n  right\n  right\n  move\n  right\nend',
+    },
+    {
+      id: 'w1-7',
+      name: 'Low Battery',
+      brief: 'The battery holds exactly 16 steps, and every move and every turn costs one. Find a route with as few turns as possible.',
+      hint: 'Long straight runs are cheap; each zig-zag costs two turns.',
+      tools: tools(HANDS, ['repeat']),
+      win: 'reach',
+      maxSteps: 16,
+      map: [
+        '############',
+        '#>.......#.#',
+        '#.##.###.#.#',
+        '#.#..#...#.#',
+        '#...##.#...#',
+        '#.#....#.#G#',
+        '############',
+      ],
+      solution: 'move 7\nright\nmove 3\nleft\nmove 2\nright\nmove',
+    },
+    {
+      id: 'w1-8',
+      name: 'Junction Sweep',
+      brief: 'Eight bolts lie along the four arms of a junction. Pip\'s hopper holds them all. A repeat can sit inside another repeat.',
+      hint: 'Inner repeat: one arm (move, grab — twice). Outer repeat: all four arms, coming back to the middle each time.',
+      tools: tools(HANDS, ['repeat']),
+      win: 'collect',
+      capacity: 8,
+      map: [
+        '#######',
+        '###o###',
+        '###o###',
+        '#oo>oo#',
+        '###o###',
+        '###o###',
+        '#######',
+      ],
+      solution: 'repeat 4\n  repeat 2\n    move\n    grab\n  end\n  right\n  right\n  move 2\n  left\nend',
+    },
+  ],
+};

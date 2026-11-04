@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { World, parseMap } from '../src/world/world.js';
 import { runLevel } from '../src/game/run.js';
-import { LEVELS } from '../src/game/levels.js';
+import { ALL_LEVELS as LEVELS } from '../src/game/levels.js';
 
 test('parseMap finds robot, items and validates shape', () => {
   const m = parseMap(['#v#', '.o.', 'GB#']);
@@ -60,7 +60,7 @@ test('every level has a working solution', () => {
 });
 
 test('runLevel classifies outcomes', () => {
-  const lvl = { ...LEVELS[0], tools: undefined }; // all commands allowed
+  const lvl = { ...LEVELS.find((l) => l.id === 'proto-1'), tools: undefined }; // all commands allowed
   assert.equal(runLevel('move', lvl).result, 'fail');
   assert.equal(runLevel('right\nmove', lvl).result, 'error'); // bumps wall
   assert.equal(runLevel('move 9', lvl).result, 'win'); // docking on the pad ends the run
