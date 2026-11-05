@@ -73,7 +73,9 @@ export function compile(ast) {
     emit({ op: 'ret', line: 0 });
   }
   for (const i of callFixups) code[i].fn = fnAddr[code[i].name];
-  return { code, functions: fnAddr };
+  // defs: [{ name, line }] in source order, for the function panel
+  const defs = Object.entries(ast.functions).map(([name, fn]) => ({ name, line: fn.line })).sort((a, b) => a.line - b.line);
+  return { code, functions: fnAddr, defs };
 }
 
 /** Parse + compile. Throws CogError on bad source. */

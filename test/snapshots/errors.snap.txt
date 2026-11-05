@@ -250,6 +250,11 @@ Line 4, col 4: unexpected '(' after 'hop' — call a function by its name alone,
  2 |   again
    |   ^^^^^
 
+### runtime: mutual recursion
+[error] Line 5, col 3: too many nested calls (limit 64) — 'ping' and 'pong' keep calling each other; does either one ever stop?
+ 5 |   ping
+   |   ^^^^
+
 ### runtime: idle loop
 [error] Line 2, col 3: the program loops without doing anything — check your while conditions
  2 |   if wall

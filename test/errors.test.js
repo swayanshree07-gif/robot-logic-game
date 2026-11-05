@@ -74,6 +74,7 @@ const CASES = [
   ['runtime: bump into wall', 'move\nleft\nmove', {}],
   ['runtime: grab nothing', 'move\ngrab', {}],
   ['runtime: endless recursion', 'def again\n  again\nend\nagain', {}],
+  ['runtime: mutual recursion', 'def ping\n  pong\nend\ndef pong\n  ping\nend\nping', {}],
   ['runtime: idle loop', 'while not goal\n  if wall\n    left\n  end\nend', {}],
   ['runtime: going in circles', 'while true\n  right\nend', {}],
   ['runtime: out of steps', 'repeat 999\n  wait\nend', { maxTicks: 50 }],

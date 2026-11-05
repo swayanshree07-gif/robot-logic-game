@@ -20,6 +20,8 @@
 // pauses *before* a breakpoint line; Run/Resume or Step continue past it.
 import { Runner, describeResult, DEFAULT_MAX_TICKS } from './run.js';
 import { World } from '../world/world.js';
+import { scoreRun, parLine } from './score.js';
+import { analyze } from '../lang/lint.js';
 
 /** Speeds offered in the UI: ms between ticks (0 = as fast as possible). */
 export const SPEEDS = [
@@ -56,6 +58,14 @@ export class PlaySession {
     if (text === this.source) return;
     this.source = text;
     if (this.state !== 'edit') this.reset();
+  }
+
+  /** Parse + lint of the current source, cached until it changes: { error, warnings, defs }. */
+  get analysis() {
+    if (!this.analysisCache || this.analysisCache.source !== this.source) {
+      this.analysisCache = { source: this.source, ...analyze(this.source) };
+    }
+    return this.analysisCache;
   }
 
   reset() {
@@ -174,6 +184,7 @@ export class PlaySession {
     this.state = 'done';
     const summary = { result: r.result, ticks: r.ticks, size: r.size, unmet: this.world.unmetGoals(), error: r.error };
     summary.message = describeResult(summary);
+    summary.score = scoreRun(summary, this.level.par);
     this.result = summary;
   }
 
@@ -200,6 +211,7 @@ export class PlaySession {
   /** Everything the UI needs to draw controls and the status line. */
   view() {
     const s = this.state;
+    const ins = this.runner?.vm ? this.runner.vm.inspect() : null;
     return {
       state: s,
       line: this.line,
@@ -211,8 +223,13 @@ export class PlaySession {
       callStack: this.runner?.vm ? this.runner.vm.callStack : [],
       loopCounters: this.runner?.vm ? this.runner.vm.loopCounters : [],
       // debugger panel: [{name, line}] frames and [{line, total, pass}] repeat blocks, outermost first
-      frames: this.runner?.vm ? this.runner.vm.inspect().frames : [],
-      loops: this.runner?.vm ? this.runner.vm.inspect().loops : [],
+      frames: ins ? ins.frames : [],
+      loops: ins ? ins.loops : [],
+      // function panel: [{name, line, calls, active}] in source order (calls 0 before a run)
+      functions: ins ? ins.functions
+        : this.analysis.defs.map((d) => ({ ...d, calls: 0, active: 0 })),
+      // lint warnings (CogError kind 'warning') for the program as written; only while editing
+      warnings: s === 'edit' ? this.analysis.warnings : [],
       canStepOut: s === 'paused' && Boolean(this.runner?.vm?.depth),
       canStep: s !== 'running',
       canStop: s === 'running' || s === 'paused',
@@ -226,7 +243,13 @@ export class PlaySession {
 export function resultBanner(result, { hasNext = false } = {}) {
   if (!result) return null;
   switch (result.result) {
-    case 'win': return { kind: 'win', title: 'Job done!', text: result.message, next: hasNext };
+    case 'win': {
+      const sc = result.score;
+      return {
+        kind: 'win', title: 'Job done!', text: result.message, next: hasNext,
+        stars: sc ? sc.stars : 1, par: sc && (sc.steps.par !== null || sc.size.par !== null) ? parLine(sc) : '',
+      };
+    }
     case 'fail': return { kind: 'fail', title: 'Not quite', text: result.message, next: false };
     case 'timeout': return { kind: 'fail', title: 'Battery flat', text: `${result.error.detail}. ${result.error.hint ? `Hint: ${result.error.hint}.` : ''}`.trim(), next: false };
     case 'loop': return { kind: 'fail', title: 'Stuck in a loop', text: result.error.hint || result.error.message, next: false };

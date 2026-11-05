@@ -13,6 +13,7 @@
 //   maxSteps: 2000,                   // battery (actions per run)
 //   solution: 'move 2',               // known solution, verified by the tests
 //   hint: 'optional extra help',
+//   par: { steps: 6, size: 1 },       // optional par scores (src/game/score.js)
 // }
 // Win rules:
 //   reach    Pip stands on a goal pad (G)
@@ -69,6 +70,16 @@ export function validateLevel(level, { requireSolution = true } = {}) {
   if (typeof level.name !== 'string' || !level.name.trim()) p.push('name is required');
   if (level.brief !== undefined && typeof level.brief !== 'string') p.push('brief must be text');
   if (level.hint !== undefined && typeof level.hint !== 'string') p.push('hint must be text');
+  if (level.par !== undefined) {
+    const par = level.par;
+    const posInt = (v) => Number.isInteger(v) && v > 0;
+    if (!par || typeof par !== 'object' || Array.isArray(par)) p.push('par must be { steps, size }');
+    else {
+      for (const k of Object.keys(par)) if (!['steps', 'size'].includes(k)) p.push(`unknown par field '${k}' (use steps, size)`);
+      if (par.steps !== undefined && !posInt(par.steps)) p.push('par.steps must be a whole number above 0');
+      if (par.size !== undefined && !posInt(par.size)) p.push('par.size must be a whole number above 0');
+    }
+  }
   if (requireSolution && (typeof level.solution !== 'string' || !level.solution.trim())) p.push('solution is required');
 
   let m = null;

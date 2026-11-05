@@ -8,6 +8,8 @@ import { runLevel } from '../src/game/run.js';
 import { solve, actionsToCog } from '../src/game/solver.js';
 import { parse } from '../src/lang/parser.js';
 import { validateLevel, normalizeLevel } from '../src/world/level.js';
+import { scoreRun } from '../src/game/score.js';
+import { lint } from '../src/lang/lint.js';
 
 /** Max nesting depth of repeat blocks in a program. */
 function repeatDepth(src) {
@@ -92,4 +94,19 @@ test('solver basics', () => {
   const corner = { map: ['####', '#>.#', '##G#', '####'], win: 'reach' };
   assert.equal(solve(corner).steps, 3);
   assert.equal(solve({ ...corner, tools: { actions: ['move'] } }), null);
+});
+
+test('World 1 par: steps = solver optimum, size = the solution, warning-free solutions', () => {
+  for (const lv of WORLD1.levels) {
+    assert.ok(lv.par && lv.par.steps && lv.par.size, `${lv.id} has par`);
+    assert.equal(lv.par.steps, solve(lv).steps, `${lv.id} par.steps is the optimum`);
+    const r = runLevel(lv.solution, lv);
+    assert.equal(r.size, lv.par.size, `${lv.id} solution size is par`);
+    assert.ok(scoreRun(r, lv.par).stars >= 2, lv.id);
+    assert.deepEqual(lint(parse(lv.solution)), [], `${lv.id} solution has no warnings`);
+  }
+  // 1-8: the solver's step-optimal route earns the steps star, the nested repeat the size star
+  const lv = WORLD1.levels[7];
+  const fast = runLevel(actionsToCog(solve(lv).actions), lv);
+  assert.deepEqual([scoreRun(fast, lv.par).steps.ok, scoreRun(fast, lv.par).size.ok], [true, false]);
 });

@@ -19,12 +19,15 @@
       </div>
       <p id="brief" class="brief"></p>
       <p id="goal" class="goal"></p>
+      <p id="par" class="par"></p>
       <div class="board-wrap">
         <canvas id="board" width="640" height="400" aria-label="Factory floor"></canvas>
         <div id="banner" class="banner" hidden role="alertdialog" aria-labelledby="banner-title">
           <div class="banner-card">
             <h3 id="banner-title"></h3>
+            <p id="banner-stars" class="stars" aria-hidden="true"></p>
             <p id="banner-text"></p>
+            <p id="banner-par" class="par-line"></p>
             <div class="banner-buttons">
               <button id="banner-retry" type="button">↺ Try again</button>
               <button id="banner-next" type="button" class="primary">Next level ▶</button>
@@ -61,6 +64,10 @@
         <div class="gutter" aria-hidden="true"></div>
         <div class="band" hidden></div>
         <textarea id="editor" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" rows="16"></textarea>
+      </div>
+      <div id="fn-panel" class="fn-panel" hidden>
+        <h4>Functions <small>(click to jump to the def)</small></h4>
+        <ul id="fn-list"></ul>
       </div>
       <div class="controls">
         <button id="run" type="button" class="primary" title="Run / pause (Ctrl+Enter)">▶ Run</button>

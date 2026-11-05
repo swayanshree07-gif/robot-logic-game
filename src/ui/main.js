@@ -7,6 +7,7 @@ import { formatError } from '../lang/errors.js';
 import { draw } from './render.js';
 import { Animator, tweenMs } from './art.js';
 import { CodeEditor } from './editor.js';
+import { starText, bestStars } from '../game/score.js';
 
 const $ = (id) => document.getElementById(id);
 const ctx = $('board').getContext('2d');
@@ -56,6 +57,7 @@ function loadLevel(i) {
   if (t.blocks.length) parts.push(`blocks: ${t.blocks.join(' ')}`);
   if (t.sensors.length) parts.push(`sensors: ${t.sensors.join(' ')}`);
   $('tools').textContent = `Unlocked — ${parts.join(' · ')}`;
+  showPar(level);
   $('level-select').value = String(i);
   editor.value = store.get(`draft.${level.id}`) ?? '';
   session.setBreakpoints(loadBreakpoints(level.id));
@@ -63,6 +65,32 @@ function loadLevel(i) {
   session.setSource(editor.value);
   shownResult = null;
   dirty = true;
+}
+
+/** Best stars so far for a level (0..3, kept in localStorage). */
+const savedStars = (id) => Math.min(3, Math.max(0, Number(store.get(`stars.${id}`)) || 0));
+
+/** "Par: 29 steps · size 8 · best ★★☆" under the goal. */
+function showPar(level) {
+  const el = $('par');
+  if (!level.par) { el.textContent = ''; return; }
+  const bits = [];
+  if (level.par.steps) bits.push(`${level.par.steps} steps`);
+  if (level.par.size) bits.push(`size ${level.par.size}`);
+  const best = document.createElement('span');
+  best.className = 'best';
+  best.textContent = starText(savedStars(level.id));
+  el.replaceChildren(`Par: ${bits.join(' · ')} — best `, best);
+  el.title = 'One star for finishing, one for matching the step par, one for matching the size par';
+}
+
+/** Level picker labels, with best stars once a level has been won. */
+function labelLevels() {
+  for (const opt of $('level-select').options) {
+    const l = LEVELS[Number(opt.value)];
+    const n = savedStars(l.id);
+    opt.textContent = `${opt.dataset.label}${n ? `  ${starText(n)}` : ''}`;
+  }
 }
 
 /** Short world label for level numbers: 1..5, or P for the prototype bay. */
@@ -116,7 +144,14 @@ function render() {
   const size = session.runner ? session.runner.size : 0;
   $('size').textContent = size ? `size ${size}` : '';
 
-  if (v.state === 'edit') { editor.clearMarks(); setStatus('Ready. Press Run, or Step to go one action at a time.'); }
+  renderFunctions(v);
+  if (v.state === 'edit') {
+    editor.clearMarks();
+    if (v.warnings.length) {
+      const more = v.warnings.length > 1 ? `\n(+${v.warnings.length - 1} more warning${v.warnings.length > 2 ? 's' : ''})` : '';
+      setStatus(`Warning: ${formatError(editor.value, v.warnings[0])}${more}`, 'warn');
+    } else setStatus('Ready. Press Run, or Step to go one action at a time.');
+  }
   else if (v.state !== 'done') {
     editor.setActive(v.line, Boolean(v.atBreak));
     setStatus(v.atBreak ? `Paused before line ${v.atBreak} (breakpoint). Resume or Step to go on.`
@@ -145,6 +180,25 @@ function renderDebugger(v) {
   $('dbg-break').textContent = v.atBreak ? `● paused at breakpoint, line ${v.atBreak}` : '';
 }
 
+/** Function panel: every def with its line, calls so far, and whether it is running. */
+function renderFunctions(v) {
+  $('fn-panel').hidden = !v.functions.length;
+  const unused = new Set(v.warnings.filter((w) => w.code === 'unused').map((w) => w.line));
+  $('fn-list').replaceChildren(...v.functions.map((f) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    const state = f.active ? ` · <span>running${f.active > 1 ? ` ×${f.active}` : ''}</span>`
+      : unused.has(f.line) ? ' · <span class="warn">never called</span>' : '';
+    const calls = v.state === 'edit' ? '' : ` · called ${f.calls}×`;
+    b.innerHTML = `<b>${esc(f.name)}</b> line ${f.line}${calls}${state}`;
+    b.onclick = () => editor.goToLine(f.line);
+    const e = document.createElement('li');
+    if (f.active) e.className = 'running';
+    e.append(b);
+    return e;
+  }));
+}
+
 function showResult(result) {
   const banner = $('banner');
   const b = resultBanner(result, { hasNext: index < LEVELS.length - 1 });
@@ -155,6 +209,13 @@ function showResult(result) {
   $('banner-title').textContent = b.title;
   $('banner-text').textContent = b.text;
   $('banner-next').hidden = !b.next;
+  $('banner-stars').textContent = b.stars ? starText(b.stars) : '';
+  $('banner-par').textContent = b.par || '';
+  if (result.result === 'win' && result.score) {
+    const id = session.level.id;
+    const best = bestStars(savedStars(id), result.score);
+    if (best > savedStars(id)) { store.set(`stars.${id}`, String(best)); showPar(session.level); labelLevels(); }
+  }
   if (result.error) {
     setStatus(formatError(editor.value, result.error), 'error');
     editor.setActive(0);
@@ -202,9 +263,14 @@ const sel = $('level-select');
 WORLDS.forEach((w) => {
   const group = document.createElement('optgroup');
   group.label = `${worldTag(w)}. ${w.name}`;
-  w.levels.forEach((l, n) => group.append(new Option(`${worldTag(w)}-${n + 1} ${l.name}`, LEVELS.indexOf(l))));
+  w.levels.forEach((l, n) => {
+    const opt = new Option('', LEVELS.indexOf(l));
+    opt.dataset.label = `${worldTag(w)}-${n + 1} ${l.name}`;
+    group.append(opt);
+  });
   sel.append(group);
 });
+labelLevels();
 sel.onchange = () => loadLevel(Number(sel.value));
 
 // --- main loop ---

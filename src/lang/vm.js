@@ -30,6 +30,8 @@ export class VM {
     this.counters = [];
     this.counterIns = []; // the push instruction of each active repeat (parallel to counters)
     this.calls = [];
+    this.defs = program.defs || [];
+    this.callCounts = Object.create(null); // function name -> calls started so far
     this.status = 'running'; // running | halted | error
     this.error = null;
     this.ticks = 0; // actions performed
@@ -107,8 +109,9 @@ export class VM {
       case 'call':
         if (this.calls.length >= this.maxCallDepth) {
           return this.fail(`too many nested calls (limit ${this.maxCallDepth})`, 'recursion',
-            { hint: `is '${ins.name}' calling itself forever?` });
+            { hint: recursionHint(this.calls, ins.name) });
         }
+        this.callCounts[ins.name] = (this.callCounts[ins.name] || 0) + 1;
         this.calls.push({ ret: this.pc + 1, name: ins.name, line: ins.line });
         this.pc = ins.fn;
         break;
@@ -163,13 +166,32 @@ export class VM {
    * Debugger snapshot, outermost first:
    *   frames: [{ name, line }]   name 'main' (line 0), then each call with the line it was called from
    *   loops:  [{ line, total, pass }]  each active repeat block: header line, count, current pass (1-based)
+   *   functions: [{ name, line, calls, active }]  every def in source order: def line,
+   *              calls started so far, and how many of its calls are running right now
    */
   inspect() {
     return {
       frames: [{ name: 'main', line: 0 }, ...this.calls.map((c) => ({ name: c.name, line: c.line }))],
       loops: this.counterIns.map((ins, i) => ({ line: ins.line, total: ins.n, pass: ins.n - this.counters[i] })),
+      functions: this.defs.map((d) => ({
+        name: d.name, line: d.line, calls: this.callCounts[d.name] || 0,
+        active: this.calls.filter((c) => c.name === d.name).length, // how many copies are running now
+      })),
     };
   }
+}
+
+/**
+ * Hint for the call-depth error: name the function(s) going round in circles.
+ * Looks at the innermost calls, where a runaway recursion lives.
+ */
+export function recursionHint(calls, next) {
+  const recent = [...calls.slice(-12).map((c) => c.name), next];
+  const names = [...new Set(recent)];
+  if (names.length === 1) return `is '${next}' calling itself forever?`;
+  const quoted = names.map((n) => `'${n}'`);
+  const list = quoted.length === 2 ? quoted.join(' and ') : `${quoted.slice(0, -1).join(', ')} and ${quoted.at(-1)}`;
+  return `${list} keep calling each other; does either one ever stop?`;
 }
 
 /** Source lines that hold an instruction, i.e. where a breakpoint can trigger. */

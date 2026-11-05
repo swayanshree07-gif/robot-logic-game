@@ -93,3 +93,22 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); o
 .speed { font-size: .9rem; color: var(--dim); }
 details { color: var(--dim); }
 pre { font-size: 12px; }
+
+/* par & stars */
+.par { margin: 0 0 6px; font: 12px var(--mono); color: var(--dim); }
+.par .best { color: var(--accent); letter-spacing: .1em; }
+.banner-card .stars { margin: -2px 0 4px; font-size: 1.6rem; letter-spacing: .15em; color: var(--accent); }
+.banner-card .par-line { margin: -4px 0 .7rem; font: 12px var(--mono); color: var(--dim); }
+.banner-card p:empty { display: none; }
+/* function panel */
+.fn-panel { margin: 6px 0 0; padding: 6px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; font: 12px/1.5 var(--mono); color: var(--dim); }
+.fn-panel[hidden] { display: none; }
+.fn-panel h4 { margin: 0 0 2px; font: 700 11px system-ui, sans-serif; text-transform: uppercase; letter-spacing: .06em; }
+.fn-panel h4 small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.fn-panel ul { margin: 0; padding: 0; list-style: none; }
+.fn-panel button { all: unset; cursor: pointer; display: block; width: 100%; padding: 1px 4px; border-radius: 3px; }
+.fn-panel button:hover, .fn-panel button:focus-visible { background: var(--panel2); outline: 1px solid var(--line); }
+.fn-panel b { color: var(--ink); font-weight: 600; }
+.fn-panel .running b { color: var(--accent); }
+.fn-panel .warn { color: var(--accent); }
+.status.warn { color: var(--accent); }

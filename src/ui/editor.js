@@ -1,6 +1,6 @@
 // Code editor component: a plain <textarea> with a line-number gutter and a
 // highlight band for the running line / error line. Logic lives in editor-model.js.
-import { lineCount, lineAt, gutterRows, errorRange, editKey } from './editor-model.js';
+import { lineCount, lineStart, lineAt, gutterRows, errorRange, editKey } from './editor-model.js';
 
 export class CodeEditor {
   /** @param {HTMLElement} root  element containing .gutter, .band and textarea */
@@ -26,6 +26,19 @@ export class CodeEditor {
 
   get value() { return this.ta.value; }
   set value(v) { this.ta.value = v; this.marks = { active: 0, error: 0 }; this.refresh(); }
+
+  /** Put the caret at the start of `line` (1-based), select its text and scroll it into view. */
+  goToLine(line) {
+    const start = lineStart(this.ta.value, line);
+    const nl = this.ta.value.indexOf('\n', start);
+    this.ta.focus();
+    this.ta.setSelectionRange(start, nl < 0 ? this.ta.value.length : nl);
+    const top = (line - 1) * this.lineHeight();
+    if (top < this.ta.scrollTop || top > this.ta.scrollTop + this.ta.clientHeight - this.lineHeight()) {
+      this.ta.scrollTop = Math.max(0, top - this.ta.clientHeight / 3);
+      this.syncScroll();
+    }
+  }
 
   key(e) {
     if (e.key === 'F9' && this.onToggleBreakpoint) {

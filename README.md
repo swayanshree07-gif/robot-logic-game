@@ -52,6 +52,22 @@ line each function was called from) and every active `repeat` block with its
 line and pass ("pass 2 of 4"). Breakpoints are saved per level and still
 pause step over / step out.
 
+**Functions:** whenever the program has `def`s, a Functions panel under the
+editor lists each one with its line; click it to jump to the definition. During
+a run it shows how many times each was called and which are running right now
+(`running ×3` for recursion). Before running, the status line shows warnings
+that don't stop the program: a function that is never called (or only calls
+itself), empty blocks, `repeat 1`. Recursion works (e.g. `def go` / `if not
+goal` / `move` / `go`), up to 64 nested calls; past that the error names the
+function, or the pair of functions calling each other.
+
+**Par & stars:** each World 1 level has a par for **steps** (the fewest
+possible, found by the BFS solver) and **size** (statements in the shortest
+known program). Finishing earns ★, matching each par earns another. The two
+pars often need different programs (1-8: the nested repeat is small, the
+fastest route is longer to write). Best stars are saved per level and shown in
+the level picker and under the goal.
+
 **Look:** the factory floor is pixel art drawn entirely in code (16 art pixels
 per tile, scaled by whole numbers): steel floor plates with grates and bolts,
 walls in 3/4 view with pipes, charging-pad goals, purple bins, gear parts, and
@@ -131,11 +147,16 @@ Levels are grouped into worlds (`src/game/levels.js` → `WORLDS`, `LEVELS`).
 in order (nothing learned is taken away; each new command is used), the
 level's idea is really used (e.g. nested repeat on 1-8, repeat beats the flat
 program), and that 1-7's battery equals the optimum found by the BFS solver
-(`src/game/solver.js`, which also proves every level solvable).
+(`src/game/solver.js`, which also proves every level solvable). It also
+checks every World 1 par: steps equal the solver's optimum, size equals the
+stored solution's, and solutions trigger no warnings. Par format:
+`par: { steps, size }` (optional, validated by `level.js`).
 
 ## Layout
 - `src/lang/` — parser (source → AST), compiler (AST → bytecode), steppable VM,
-  `errors.js` (positions, "did you mean", caret formatting)
+  `errors.js` (positions, "did you mean", caret formatting), `lint.js`
+  (non-fatal warnings, `analyze()` = parse + lint without running)
+- `src/game/score.js` — par comparison and stars
 - `src/world/` — grid world: map format, sensors, actions, win rules
 - `src/game/` — level data by world (each with a tested solution), BFS
   `solver.js` (fewest-action wins), `Runner` (world + VM,
@@ -149,12 +170,13 @@ program), and that 1-7's battery equals the optimum found by the BFS solver
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
-Day 5 of 30 (milestones through Day 7 done): language core with friendly
+Day 6 of 30 (milestones through Day 8 done): language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1
 with validation, per-level unlocked commands and reach/collect/deliver win
-rules; World 1 (8 levels) plus 5 prototype levels; a level-screen UI with
-line-numbered editor, Run/Pause/Step/Stop/Reset, speed control, HUD and result
-banner; code-drawn pixel art with tweened animation; a step debugger with
-breakpoints, step over / step out and a call-stack / repeat-block panel; a BFS
-solver for level verification. 92 automated tests. Next: Day 8 — functions
-polish and par scores (size & steps) for World 1.
+rules; World 1 (8 levels) with par scores and stars, plus 5 prototype levels; a
+level-screen UI with line-numbered editor, Run/Pause/Step/Stop/Reset, speed
+control, HUD and result banner; code-drawn pixel art with tweened animation; a
+step debugger with breakpoints, step over / step out, a call-stack /
+repeat-block panel and a function panel; lint warnings; a BFS solver for level
+verification. 104 automated tests. Next: Day 9 — block editor with lossless
+round-trip to Cog text.

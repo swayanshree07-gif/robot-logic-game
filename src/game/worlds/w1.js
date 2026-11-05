@@ -3,7 +3,8 @@
 //   4 repeat                         5 grab / drop        6 repeat with a job inside
 //   7 efficiency: every action costs battery            8 nested repeat
 // No sensors in this world: Pip follows the plan exactly, so planning is the skill.
-// Every level's `solution` is run by test/levels.test.js.
+// Every level's `solution` is run by test/levels.test.js. `par` (src/game/score.js):
+// steps = solver optimum, size = the solution's size (the shortest program we know).
 const MOVE = ['move'];
 const TURN = ['move', 'left', 'right'];
 const HANDS = ['move', 'left', 'right', 'grab', 'drop'];
@@ -16,6 +17,7 @@ export const WORLD1 = {
   levels: [
     {
       id: 'w1-1',
+      par: { steps: 6, size: 1 },
       name: 'Wake-Up Call',
       brief: 'Pip is awake but nearly flat. Roll forward onto the charging pad. `move 6` moves six tiles in one line.',
       hint: 'Count the floor tiles between Pip and the pad.',
@@ -30,6 +32,7 @@ export const WORLD1 = {
     },
     {
       id: 'w1-2',
+      par: { steps: 13, size: 7 },
       name: 'Locker Corner',
       brief: 'The corridor bends past the lockers. `left` and `right` turn Pip on the spot, a quarter turn each.',
       hint: 'Turns are relative to where Pip is facing, not to the screen.',
@@ -48,6 +51,7 @@ export const WORLD1 = {
     },
     {
       id: 'w1-3',
+      par: { steps: 20, size: 7 },
       name: 'About Face',
       brief: 'Pip parked nose-first against the wall. Turn around, then take the long way round to the pad.',
       hint: 'Two right turns (or two lefts) make Pip face the other way.',
@@ -64,6 +68,7 @@ export const WORLD1 = {
     },
     {
       id: 'w1-4',
+      par: { steps: 21, size: 6 },
       name: 'Stairwell',
       brief: 'Five steps down, all the same. Write one step inside `repeat 5 … end` instead of five times.',
       hint: 'One step is: move, right, move, left. Then one last move to the pad.',
@@ -83,6 +88,7 @@ export const WORLD1 = {
     },
     {
       id: 'w1-5',
+      par: { steps: 9, size: 6 },
       name: 'Loose Bolt',
       brief: 'A part fell off the line. `grab` picks up the part Pip is standing on, `drop` on a bin delivers it.',
       hint: 'Grab on the part tile, drop on the bin tile.',
@@ -99,6 +105,7 @@ export const WORLD1 = {
     },
     {
       id: 'w1-6',
+      par: { steps: 36, size: 10 },
       name: 'Restock Run',
       brief: 'Four parts, each right above its own bin. The job is the same every time: put it inside a repeat.',
       hint: 'Make each pass end where the next one starts: back in the top row, facing east.',
@@ -114,6 +121,7 @@ export const WORLD1 = {
     },
     {
       id: 'w1-7',
+      par: { steps: 16, size: 7 },
       name: 'Low Battery',
       brief: 'The battery holds exactly 16 steps, and every move and every turn costs one. Find a route with as few turns as possible.',
       hint: 'Long straight runs are cheap; each zig-zag costs two turns.',
@@ -133,6 +141,7 @@ export const WORLD1 = {
     },
     {
       id: 'w1-8',
+      par: { steps: 29, size: 8 },
       name: 'Junction Sweep',
       brief: 'Eight bolts lie along the four arms of a junction. Pip\'s hopper holds them all. A repeat can sit inside another repeat.',
       hint: 'Inner repeat: one arm (move, grab — twice). Outer repeat: all four arms, coming back to the middle each time.',
