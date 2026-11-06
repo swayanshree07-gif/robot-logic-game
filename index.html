@@ -9,9 +9,11 @@
 <body>
   <header class="topbar">
     <h1>Night Shift at <span>Ferrolab</span></h1>
+    <button id="open-map" type="button" class="map-btn" title="World map and level select (M)">▦ Map</button>
     <label class="picker">Level <select id="level-select"></select></label>
   </header>
-  <main class="level-screen">
+  <main id="map" class="map-screen" hidden aria-label="World map"></main>
+  <main id="level-screen" class="level-screen">
     <section class="stage" aria-labelledby="level-name">
       <div class="level-head">
         <span id="level-num" class="level-num"></span>

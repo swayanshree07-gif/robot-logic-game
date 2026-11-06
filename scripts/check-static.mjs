@@ -24,5 +24,13 @@ for (const f of files) {
   try { execFileSync(process.execPath, ['--check', f], { stdio: 'pipe' }); }
   catch (e) { problems.push(`${f.slice(root.length + 1)} -> syntax error\n${e.stderr}`); }
 }
+// every $('id') used by main.js exists in index.html or is given to an element by UI code (el.id = '...')
+const htmlIds = new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+const uiSrc = files.filter((f) => f.includes('/ui/')).map((f) => readFileSync(f, 'utf8')).join('\n');
+for (const m of uiSrc.matchAll(/\.id = '([^']+)'/g)) htmlIds.add(m[1]);
+const mainSrc = readFileSync(join(root, 'src/ui/main.js'), 'utf8');
+for (const m of new Set([...mainSrc.matchAll(/\$\('([^']+)'\)/g)].map((x) => x[1]))) {
+  if (!htmlIds.has(m)) problems.push(`src/ui/main.js -> no element with id "${m}"`);
+}
 if (problems.length) { console.error(problems.join('\n')); process.exit(1); }
 console.log(`static check ok: ${files.length} modules`);

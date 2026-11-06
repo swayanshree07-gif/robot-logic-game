@@ -10,14 +10,15 @@ import { CodeEditor } from './editor.js';
 import { BlockEditor } from './blocks-view.js';
 import { toText } from '../lang/blocks.js';
 import { enterBlocks, blockedMessage, blockMark } from './code-mode.js';
-import { starText, mergeBest, recordStars } from '../game/score.js';
+import { starText } from '../game/score.js';
+import { SaveStore } from '../game/save.js';
+import { mapModel, totals, continueIndex, isOpen } from '../game/progress.js';
+import { renderMap } from './map-view.js';
 
 const $ = (id) => document.getElementById(id);
 const ctx = $('board').getContext('2d');
-const store = {
-  get: (k) => { try { return localStorage.getItem(`ferrolab.${k}`); } catch { return null; } },
-  set: (k, v) => { try { localStorage.setItem(`ferrolab.${k}`, v); } catch { /* storage full or blocked */ } },
-};
+/** Versioned progress save (src/game/save.js); memory-only if localStorage is unavailable. */
+const save = new SaveStore((() => { try { return window.localStorage; } catch { return null; } })());
 
 let index = 0;
 let session = null;
@@ -32,7 +33,7 @@ let notice = ''; // one-off message for the status line while editing (cleared o
 /** The program changed (from either editor): save the draft and hand it to the session. */
 function applySource(text) {
   notice = '';
-  store.set(`draft.${session.level.id}`, text);
+  save.setDraft(session.level.id, text);
   session.setSource(text);
   dirty = true;
 }
@@ -41,7 +42,7 @@ function toggleBreakpoint(line) {
   session.toggleBreakpoint(line);
   editor.setBreakpoints(session.breakpoints);
   blockEditor.setBreakpoints(session.breakpoints);
-  store.set(`bp.${session.level.id}`, JSON.stringify([...session.breakpoints]));
+  save.setBreakpoints(session.level.id, session.breakpoints);
   dirty = true;
 }
 
@@ -57,7 +58,7 @@ const blockEditor = new BlockEditor($('blocks-root'), {
  * Switch editors. Blocks need a program that parses; if it doesn't, stay in
  * (or fall back to) text mode and point at the error. Returns the mode in use.
  */
-function setMode(next, { save = true } = {}) {
+function setMode(next, { remember = true } = {}) {
   if (next === 'blocks') {
     const r = enterBlocks(editor.value);
     if (r.ok) {
@@ -75,7 +76,7 @@ function setMode(next, { save = true } = {}) {
   $('blocks-root').hidden = mode !== 'blocks';
   $('mode-text').setAttribute('aria-pressed', String(mode === 'text'));
   $('mode-blocks').setAttribute('aria-pressed', String(mode === 'blocks'));
-  if (save) store.set('mode', mode);
+  if (remember) save.setSetting('mode', mode);
   dirty = true;
   return mode;
 }
@@ -84,17 +85,15 @@ function setMode(next, { save = true } = {}) {
 function setProgram(text) {
   editor.value = text;
   session.setSource(text);
-  if (mode === 'blocks') setMode('blocks', { save: false });
-}
-
-function loadBreakpoints(id) {
-  try { return JSON.parse(store.get(`bp.${id}`) || '[]').filter(Number.isInteger); } catch { return []; }
+  if (mode === 'blocks') setMode('blocks', { remember: false });
 }
 
 /** Open level `i` of LEVELS (or, for dev URLs, any level object, e.g. a prototype fixture). */
 function loadLevel(i, level = LEVELS[i]) {
   index = i;
-  const speed = store.get('speed') || 'normal';
+  if (LEVELS.includes(level)) save.last = level.id;
+  showScreen('level');
+  const speed = save.setting('speed', 'normal');
   session = new PlaySession(level, { speed: SPEEDS.some((s) => s.id === speed) ? speed : 'normal' });
   const place = levelPlace(level);
   $('level-num').textContent = place ? `${worldTag(place.world)}-${place.n}` : String(i + 1);
@@ -111,9 +110,9 @@ function loadLevel(i, level = LEVELS[i]) {
   buildFloors();
   $('level-select').value = String(i);
   notice = '';
-  session.setBreakpoints(loadBreakpoints(level.id));
+  session.setBreakpoints(save.breakpoints(level.id));
   editor.setBreakpoints(session.breakpoints);
-  setProgram(store.get(`draft.${level.id}`) ?? '');
+  setProgram(save.draft(level.id) ?? '');
   shownResult = null;
   dirty = true;
 }
@@ -145,13 +144,7 @@ function watchFloor(i) {
   dirty = true;
 }
 
-/** Best record for a level ({ won, steps, size }, kept in localStorage as `best.<id>`). */
-function savedBest(id) {
-  try { return JSON.parse(store.get(`best.${id}`) || 'null'); } catch { return null; }
-}
-/** Best stars so far (0..3). Older saves only kept a count in `stars.<id>`; never show less than that. */
-const savedStars = (id) => Math.max(recordStars(savedBest(id)),
-  Math.min(3, Math.max(0, Number(store.get(`stars.${id}`)) || 0)));
+const savedStars = (id) => save.stars(id);
 
 /** "Par: 29 steps · size 8 · best ★★☆" under the goal. */
 function showPar(level) {
@@ -170,8 +163,10 @@ function showPar(level) {
 /** Level picker labels, with best stars once a level has been won. */
 function labelLevels() {
   for (const opt of $('level-select').options) {
-    const l = LEVELS[Number(opt.value)];
+    const i = Number(opt.value);
+    const l = LEVELS[i];
     const n = savedStars(l.id);
+    opt.disabled = !isOpen(LEVELS, save, i) && i !== index;
     opt.textContent = `${opt.dataset.label}${n ? `  ${starText(n)}` : ''}`;
   }
 }
@@ -304,9 +299,8 @@ function showResult(result) {
   $('banner-par').textContent = b.par || '';
   if (result.result === 'win' && result.score) {
     const id = session.level.id;
-    const before = savedStars(id);
-    store.set(`best.${id}`, JSON.stringify(mergeBest(savedBest(id), result.score)));
-    if (savedStars(id) > before) { showPar(session.level); labelLevels(); }
+    const { before, after } = save.recordRun(id, result.score);
+    if (after > before) { showPar(session.level); labelLevels(); }
   }
   if (result.error) {
     setStatus(formatError(editor.value, result.error), 'error');
@@ -318,6 +312,53 @@ function showResult(result) {
   }
   (b.next ? $('banner-next') : b.floor !== undefined ? $('banner-floor') : $('banner-retry')).focus({ preventScroll: true });
 }
+
+// --- world map ---
+let screen = 'level';
+function showScreen(which) {
+  screen = which;
+  $('map').hidden = which !== 'map';
+  $('level-screen').hidden = which !== 'level';
+  $('open-map').setAttribute('aria-pressed', String(which === 'map'));
+}
+
+const SAVE_NOTES = {
+  imported: 'Progress from an older version of the game was carried over.',
+  corrupt: 'The saved progress was damaged and could not be read, so a fresh save was started (the old data is kept as ferrolab.save.bad).',
+  newer: 'This save was made by a newer version of the game; progress made now will not be saved.',
+  memory: 'This browser does not allow saving, so progress lasts only until the page is closed.',
+};
+
+function openMap() {
+  if (session && session.state === 'running') session.pause();
+  const cont = continueIndex(LEVELS, save, save.last);
+  const note = [save.notes.map((n) => SAVE_NOTES[n]).filter(Boolean).join(' '), save.lastError || ''].filter(Boolean).join(' ');
+  const model = mapModel(WORLDS, save, { current: save.last });
+  renderMap($('map'), model, totals(model), {
+    continueLabel: save.won(LEVELS[cont].id) ? `Back to ${levelLabel(cont)}` : `${save.last ? 'Continue' : 'Start'}: ${levelLabel(cont)}`,
+    note,
+    onContinue: () => loadLevel(cont),
+    onPick: (i) => loadLevel(i),
+    onReset() {
+      // eslint-disable-next-line no-alert
+      if (!confirm('Forget all stars, saved programs and breakpoints? Settings are kept.')) return;
+      save.resetProgress();
+      labelLevels();
+      openMap();
+    },
+  });
+  showScreen('map');
+  $('map-continue').focus({ preventScroll: true });
+  dirty = true;
+}
+
+/** "1-3 Turnaround" for LEVELS[i]. */
+function levelLabel(i) {
+  const place = levelPlace(LEVELS[i]);
+  return place ? `${worldTag(place.world)}-${place.n} ${LEVELS[i].name}` : LEVELS[i].name;
+}
+
+$('open-map').onclick = () => (screen === 'map' ? showScreen('level') : openMap());
 
 // --- controls ---
 const act = (fn) => () => { fn(); dirty = true; };
@@ -335,10 +376,16 @@ $('banner-next').onclick = () => loadLevel(Math.min(index + 1, LEVELS.length - 1
 
 const speedSel = $('speed');
 SPEEDS.forEach((s) => speedSel.add(new Option(s.label, s.id)));
-speedSel.value = store.get('speed') || 'normal';
-speedSel.onchange = () => { session.setSpeed(speedSel.value); store.set('speed', speedSel.value); };
+speedSel.value = save.setting('speed', 'normal');
+speedSel.onchange = () => { session.setSpeed(speedSel.value); save.setSetting('speed', speedSel.value); };
 
 document.addEventListener('keydown', (e) => {
+  const typing = e.target instanceof HTMLElement && /^(TEXTAREA|INPUT|SELECT)$/.test(e.target.tagName);
+  if (screen === 'map') {
+    if (e.key === 'Escape' || ((e.key === 'm' || e.key === 'M') && !typing)) { e.preventDefault(); showScreen('level'); }
+    return; // level-screen shortcuts are off while the map is open
+  }
+  if ((e.key === 'm' || e.key === 'M') && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); openMap(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
     e.preventDefault();
     (e.shiftKey ? $('step') : $('run')).click();
@@ -386,11 +433,13 @@ const params = new URLSearchParams(location.search);
 // &floor=N (1-based) watches that test floor.
 const start = Math.min(LEVELS.length, Math.max(1, Number(params.get('level')) || 1)) - 1;
 // &mode=text|blocks picks the editor (not saved); otherwise the saved choice.
-mode = params.get('mode') === 'blocks' || (!params.has('mode') && store.get('mode') === 'blocks') ? 'blocks' : 'text';
+mode = params.get('mode') === 'blocks' || (!params.has('mode') && save.setting('mode') === 'blocks') ? 'blocks' : 'text';
 // &id=<level id> opens any level by id, including test-fixture prototypes (dev only).
 const byId = params.has('id') ? ALL_LEVELS.find((l) => l.id === params.get('id')) : null;
-loadLevel(byId && LEVELS.includes(byId) ? LEVELS.indexOf(byId) : start, byId || undefined);
-setMode(mode, { save: false });
+// With no dev params the game opens on the map (and the board behind it holds the level "Continue" goes to).
+const devStart = params.has('level') || params.has('id');
+loadLevel(byId && LEVELS.includes(byId) ? LEVELS.indexOf(byId) : devStart ? start : continueIndex(LEVELS, save, save.last), byId || undefined);
+setMode(mode, { remember: false });
 if (params.has('code')) setProgram(params.get('code'));
 if (Number(params.get('floor')) > 1 && Number(params.get('floor')) <= session.floors) watchFloor(Number(params.get('floor')) - 1);
 if (params.has('bp')) { // &bp=2,4 sets breakpoints (not saved)
@@ -406,5 +455,7 @@ if (params.get('solve') === '1') {
 else if (params.get('run') === 'all') { session.setSpeed('instant'); session.run(); }
 // finish instant runs before the first paint so screenshots never race a frame
 while (session.state === 'running' && session.speed.ms === 0) session.update(0);
+// &map=1 opens the map (dev); no params at all also starts on the map
+if (params.get('map') === '1' || !devStart) openMap();
 render(); drawBoard(performance.now(), 0); dirty = false; // first paint without waiting for a frame
 requestAnimationFrame(frame);

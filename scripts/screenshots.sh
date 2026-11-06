@@ -44,3 +44,6 @@ shot blkbad  "level=1&mode=blocks&code=move%0Amvoe"
 shot calib   "level=9&code=move%0Agrab%0Amove%206%0Adrop&run=all"
 shot paint   "level=13&solve=1"
 shot floor3  "level=16&floor=3&solve=1"
+# world map (last, so the wins from the solve=1 shots above show as stars in the profile's save)
+shot map     "map=1"
+shot start   "x=1"

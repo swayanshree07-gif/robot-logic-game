@@ -34,17 +34,34 @@ any level by id, including the old prototype fixtures (every tool unlocked);
 `&code=...` (URL-encoded) loads that program; `&run=1` takes one step,
 `&run=all` runs it instantly (finished before the first paint); `&solve=1` runs
 the level's known solution; `&bp=2,5` sets breakpoints; `&mode=blocks` opens
-the block editor; `&floor=3` watches test floor 3. `scripts/screenshots.sh
+the block editor; `&floor=3` watches test floor 3; `&map=1` opens the map.
+Dev URLs ignore level locks; with no parameters the game starts on the map. `scripts/screenshots.sh
 blocks calib` takes only the named shots.
 
 ## Playing
+The game opens on the **factory map**: one card per world with a tile per
+level (stars earned, 🔒 when locked), total stars, a **Continue** button and
+**Reset progress…**. Levels open in order, but up to two unsolved levels are
+open at once, so one stuck puzzle never blocks you; a level you've won always
+stays open. Worlds 3–5 are shown as "under construction" until they're built.
+**▦ Map** (or the M key, outside the editor) opens the map; Esc or M goes back.
+The Level picker in the top bar still jumps anywhere that is open.
+
 Pick a level, write Pip's program, then **Run** (Ctrl+Enter; becomes Pause),
 **Step** one action at a time (Ctrl+Shift+Enter), **Stop** where it is, or
 **Reset** to the start (Esc). Speed goes from Slow to Instant and is remembered.
 The running line is highlighted in the editor; errors get a red gutter mark and
 the offending text is selected. A banner reports the result and offers the next
-level after a win. Tab / Shift+Tab indent, Enter keeps indentation. Each level's
-draft is saved in localStorage.
+level after a win. Tab / Shift+Tab indent, Enter keeps indentation.
+
+**Saving:** progress lives in one versioned localStorage record,
+`ferrolab.save` (`src/game/save.js`): best record per level, drafts,
+breakpoints, settings (speed, editor mode) and the last level opened. Saves
+from before Day 11 (loose `ferrolab.best.*`, `stars.*`, `draft.*`, … keys) are
+imported once and left in place. A damaged save is copied to
+`ferrolab.save.bad` and a fresh one started; a save written by a newer version
+is never overwritten; if storage is full or blocked the game keeps going and
+the map says progress isn't being saved.
 
 **Blocks:** the **Text / Blocks** switch above the editor shows the same
 program as blocks (choice remembered). Click a tile in the tray to add it after
@@ -91,8 +108,8 @@ known program). Finishing earns ★, matching each par earns another. The two
 pars often need different programs (1-8: the nested repeat is small, the
 fastest route is longer to write), so each par star is kept once earned and
 they add up across runs: meet the step par in one run and the size par in
-another for ★★★. The best record is saved per level (`ferrolab.best.<id>` in
-localStorage) and shown in the level picker and under the goal.
+another for ★★★. The best record is saved per level and shown on the map, in
+the level picker and under the goal.
 
 **Look:** the factory floor is pixel art drawn entirely in code (16 art pixels
 per tile, scaled by whole numbers): steel floor plates with grates and bolts,
@@ -194,6 +211,9 @@ give a clear banner, and briefs only show unlocked commands.
 unlock in order and get used, **the best fixed route for any one floor fails
 another floor** (so sensing is really needed), solutions win on 360 seeded
 random floors (6 generators × 60), and the test-floor rules in `PlaySession`.
+`test/save.test.js` covers saving with a fake storage (reload, legacy import,
+corrupt / newer / full / blocked storage, reset) and the map (unlock rule,
+playing every solution in order keeps the next level open, totals, Continue).
 `test/code-mode.test.js` covers Text ⇄ Blocks: every solution switches to blocks
 unchanged and still wins, and can be built from its level's own tile tray. Par format:
 `par: { steps, size }` (optional, validated by `level.js`).
@@ -203,6 +223,8 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
   `errors.js` (positions, "did you mean", caret formatting), `lint.js`
   (non-fatal warnings, `analyze()` = parse + lint without running)
 - `src/game/score.js` — par comparison and stars
+- `src/game/save.js` — versioned save (`SaveStore`, legacy import, `MemoryStorage`
+  fake for tests); `src/game/progress.js` — map model, unlock rule, Continue target
 - `src/world/` — grid world: map format, sensors, actions, win rules
 - `src/game/` — level data by world (each with a tested solution), BFS
   `solver.js` (fewest-action wins), `Runner` (world + VM,
@@ -214,18 +236,19 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 - `src/ui/` — browser code: canvas renderer (art drawn in code), code editor
   (gutter + line band; pure logic in `editor-model.js`), block editor
   (`blocks-view.js` over the pure `src/lang/blocks.js`; mode logic in
-  `code-mode.js`) and page wiring
+  `code-mode.js`), world map (`map-view.js`) and page wiring
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
-Day 8 of 30 (milestones through Day 10 done): language core with friendly
+Day 9 of 30 (milestones through Day 11 done): language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1
 with validation, per-level unlocked commands, reach/collect/deliver win rules
 and test floors; World 1 (8 levels) and World 2 (8 sensor levels, 3 floors
-each) with par scores and stars that add up across runs; a level screen with a
-line-numbered text editor **and a block editor** (lossless text ⇄ blocks),
+each) with par scores and stars that add up across runs; a world map / level
+select with unlocks and a versioned, migration-safe save; a level screen with
+a line-numbered text editor **and a block editor** (lossless text ⇄ blocks),
 Run/Pause/Step/Stop/Reset, speed, HUD, result banner and test-floor switcher;
 code-drawn pixel art with tweened animation; a step debugger with
 breakpoints, step over / step out, call-stack / repeat-block and function
-panels; lint warnings; a BFS solver; a level report script. 139 automated
-tests. Next: Day 11, versioned progress saving and a world map / level select.
+panels; lint warnings; a BFS solver; a level report script. 148 automated
+tests. Next: Day 12, synthesized sound (WebAudio SFX, ambient hum, mute/volume).
