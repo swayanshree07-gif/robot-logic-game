@@ -29,10 +29,13 @@ Error-message wording is pinned by `test/snapshots/errors.snap.txt`; after an
 intentional change, regenerate it and review the diff.
 
 Dev URL parameters (handy for scripted screenshots): `?level=N` opens level N
-(position in the full list: 1–8 World 1, 9–13 Prototype Bay);
+(position in the full list: 1–8 World 1, 9–16 World 2); `?id=proto-8` opens
+any level by id, including the old prototype fixtures (every tool unlocked);
 `&code=...` (URL-encoded) loads that program; `&run=1` takes one step,
 `&run=all` runs it instantly (finished before the first paint); `&solve=1` runs
-the level's known solution; `&bp=2,5` sets breakpoints.
+the level's known solution; `&bp=2,5` sets breakpoints; `&mode=blocks` opens
+the block editor; `&floor=3` watches test floor 3. `scripts/screenshots.sh
+blocks calib` takes only the named shots.
 
 ## Playing
 Pick a level, write Pip's program, then **Run** (Ctrl+Enter; becomes Pause),
@@ -42,6 +45,25 @@ The running line is highlighted in the editor; errors get a red gutter mark and
 the offending text is selected. A banner reports the result and offers the next
 level after a win. Tab / Shift+Tab indent, Enter keeps indentation. Each level's
 draft is saved in localStorage.
+
+**Blocks:** the **Text / Blocks** switch above the editor shows the same
+program as blocks (choice remembered). Click a tile in the tray to add it after
+the selected block (or into an empty loop), or drag tiles and blocks into the
+gaps; edit counts, conditions and function names in place; × or Delete
+removes, Alt+↑/↓ moves, F9 sets a breakpoint (red dot on the block). The tray
+only offers what the level has unlocked. Text stays the single source of
+truth: every block edit is written back as tidy Cog text, so drafts,
+breakpoints, the debugger and the running-block highlight work the same in
+both modes. Switching to blocks tidies the layout (indentation, spacing) but
+never moves a line; a program that doesn't parse stays in text mode with the
+error shown.
+
+**Test floors (World 2 on):** a level can come with extra floors, the same
+job on different layouts. The buttons above the board pick which floor you
+watch. A run only counts as a win if the program also wins on every other
+floor (checked instantly when the watched run wins); otherwise the banner
+says "Calibration failed", names the floor and the reason, and offers
+**Watch floor N**. Stars are always scored on floor 1.
 
 **Debugging:** click a line number (or press F9 on a line) to set a
 breakpoint (red dot). Run pauses *before* that line executes (the line gets a
@@ -62,8 +84,9 @@ itself), empty blocks, `repeat 1`. Recursion works (e.g. `def go` / `if not
 goal` / `move` / `go`), up to 64 nested calls; past that the error names the
 function, or the pair of functions calling each other.
 
-**Par & stars:** each World 1 level has a par for **steps** (the fewest
-possible, found by the BFS solver) and **size** (statements in the shortest
+**Par & stars:** each level has a par for **steps** (World 1: the fewest
+possible, found by the BFS solver; levels with test floors: the steps of the
+best *general* program on floor 1, never below the solver's optimum) and **size** (statements in the shortest
 known program). Finishing earns ★, matching each par earns another. The two
 pars often need different programs (1-8: the nested repeat is small, the
 fastest route is longer to write), so each par star is kept once earned and
@@ -127,7 +150,9 @@ fills defaults and round-trips JSON):
   capacity: 1,                 // parts Pip can carry (1..9)
   maxSteps: 2000,              // battery
   tools: { actions: [...], sensors: [...], blocks: ['repeat','while','if','def'] },
-  solution: 'move 2\ngrab\n…', hint: 'optional' }
+  solution: 'move 2\ngrab\n…', hint: 'optional',
+  par: { steps: 9, size: 5 },  // optional
+  floors: [[...map rows...]] } // optional extra test floors (up to 5), same rules
 ```
 Map legend: `#` wall, `.` floor, `G` goal pad, `B` bin, `o` part, `r y b`
 coloured floor, `> v < ^` Pip's start and facing. Win rules: **reach** (stand on
@@ -143,8 +168,16 @@ Levels are grouped into worlds (`src/game/levels.js` → `WORLDS`, `LEVELS`).
   (turning around), 1-4 Stairwell (`repeat`), 1-5 Loose Bolt (`grab`/`drop`),
   1-6 Restock Run (a job inside a repeat), 1-7 Low Battery (battery = the
   fewest possible steps, so turns matter), 1-8 Junction Sweep (nested repeat).
-- **Prototype Bay** (P-1…P-5): the earlier sensor/loop test rigs, playable
-  until Worlds 2–5 replace them.
+- **World 2 "Sensor Calibration"** (`src/game/worlds/w2.js`, 8 levels, 3
+  test floors each): 2-1 Sensor Check (`while not bin`), 2-2 Corner Probe
+  (`clear`, `goal`), 2-3 Scattered Bolts (`if item`), 2-4 Cable Duct
+  (`elif`/`else`, `clear_right`), 2-5 Paint Codes (red/blue turns in an open
+  room), 2-6 Parts Shuttle (whiles inside a repeat), 2-7 Locker Sweep
+  (`clear_left`, `while holding`), 2-8 Calibration Run (everything at once).
+  2-1 is a delivery rather than "reach the pad" on purpose: reaching a pad
+  ends the run even mid-`move N`, so `move <longest>` would beat every floor.
+- The Day 1–4 prototypes are no longer in the level list; they stay in
+  `PROTOTYPES` / `ALL_LEVELS` as test fixtures.
 
 `test/levels.test.js` checks per world that every solution wins, tools unlock
 in order (nothing learned is taken away; each new command is used), the
@@ -156,7 +189,13 @@ stored solution's, and solutions trigger no warnings. `test/world1-play.test.js`
 World 1 through `PlaySession` like the page does: every level wins with the
 size star and offers the next level, ★★★ is reachable on every level, common
 first mistakes (short, overshooting into a wall, wrong turn, locked command)
-give a clear banner, and briefs only show unlocked commands. Par format:
+give a clear banner, and briefs only show unlocked commands.
+`test/world2.test.js` checks World 2: solutions win on every floor, pars, tools
+unlock in order and get used, **the best fixed route for any one floor fails
+another floor** (so sensing is really needed), solutions win on 360 seeded
+random floors (6 generators × 60), and the test-floor rules in `PlaySession`.
+`test/code-mode.test.js` covers Text ⇄ Blocks: every solution switches to blocks
+unchanged and still wins, and can be built from its level's own tile tray. Par format:
 `par: { steps, size }` (optional, validated by `level.js`).
 
 ## Layout
@@ -173,21 +212,20 @@ give a clear banner, and briefs only show unlocked commands. Par format:
 - `src/ui/art.js` — pure art data/helpers: sprite strings, layout, wall
   autotile masks, tile hash, easing, `Animator` (tweens Pip between ticks)
 - `src/ui/` — browser code: canvas renderer (art drawn in code), code editor
-  (gutter + line band; pure logic in `editor-model.js`) and page wiring
+  (gutter + line band; pure logic in `editor-model.js`), block editor
+  (`blocks-view.js` over the pure `src/lang/blocks.js`; mode logic in
+  `code-mode.js`) and page wiring
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
-Day 7 of 30 (milestones through Day 8 done; Day 9 block editor in progress):
-language core with friendly
+Day 8 of 30 (milestones through Day 10 done): language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1
-with validation, per-level unlocked commands and reach/collect/deliver win
-rules; World 1 (8 levels) with par scores and stars that add up across runs,
-plus 5 prototype levels; a
-level-screen UI with line-numbered editor, Run/Pause/Step/Stop/Reset, speed
-control, HUD and result banner; code-drawn pixel art with tweened animation; a
-step debugger with breakpoints, step over / step out, a call-stack /
-repeat-block panel and a function panel; lint warnings; a BFS solver for level
-verification; a level report script. The block model with text round-trip
-(`src/lang/blocks.js`, tested) exists, but its editor (`src/ui/blocks-view.js`)
-isn't wired into the page yet. 123 automated tests. Next: Day 9, which means
-finishing the block editor in the UI.
+with validation, per-level unlocked commands, reach/collect/deliver win rules
+and test floors; World 1 (8 levels) and World 2 (8 sensor levels, 3 floors
+each) with par scores and stars that add up across runs; a level screen with a
+line-numbered text editor **and a block editor** (lossless text ⇄ blocks),
+Run/Pause/Step/Stop/Reset, speed, HUD, result banner and test-floor switcher;
+code-drawn pixel art with tweened animation; a step debugger with
+breakpoints, step over / step out, call-stack / repeat-block and function
+panels; lint warnings; a BFS solver; a level report script. 139 automated
+tests. Next: Day 11, versioned progress saving and a world map / level select.

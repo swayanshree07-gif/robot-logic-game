@@ -101,9 +101,10 @@ test('best record: par stars from different runs add up, a later loss takes noth
   assert.equal(recordStars(mergeBest(null, run(1, false, false))), 1);
 });
 
-test('scripts/level-report.mjs prints every World 1 level and finds no problems', async () => {
+test('scripts/level-report.mjs prints every level of every world and finds no problems', async () => {
   const { execFileSync } = await import('node:child_process');
+  const { WORLDS } = await import('../src/game/levels.js');
   const out = execFileSync(process.execPath, ['scripts/level-report.mjs', '--md'], { encoding: 'utf8', timeout: 60000 });
-  for (const l of WORLD1.levels) assert.match(out, new RegExp(`\\| ${l.id} \\| ${l.name} \\|`));
+  for (const l of WORLDS.flatMap((w) => w.levels)) assert.match(out, new RegExp(`\\| ${l.id} \\| ${l.name} \\|`));
   assert.doesNotMatch(out, /!!/);
 });

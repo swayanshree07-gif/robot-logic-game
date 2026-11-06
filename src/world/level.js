@@ -14,6 +14,9 @@
 //   solution: 'move 2',               // known solution, verified by the tests
 //   hint: 'optional extra help',
 //   par: { steps: 6, size: 1 },       // optional par scores (src/game/score.js)
+//   floors: [['#####', ...], ...],    // optional extra test floors (maps), up to MAX_FLOORS:
+//                                     // same rules and tools; a run only wins if the
+//                                     // program also wins on every test floor
 // }
 // Win rules:
 //   reach    Pip stands on a goal pad (G)
@@ -30,7 +33,8 @@ export const WIN_TYPES = ['reach', 'collect', 'deliver'];
 export const BLOCKS = ['repeat', 'while', 'if', 'def'];
 export const MAX_CAPACITY = 9;
 export const MAX_STEPS_LIMIT = 10000;
-const KNOWN_KEYS = ['format', 'id', 'name', 'brief', 'map', 'win', 'capacity', 'tools', 'maxSteps', 'solution', 'hint', 'par'];
+export const MAX_FLOORS = 5;
+const KNOWN_KEYS = ['format', 'id', 'name', 'brief', 'map', 'win', 'capacity', 'tools', 'maxSteps', 'solution', 'hint', 'par', 'floors'];
 
 export class LevelError extends Error {
   constructor(problems, id = '') {
@@ -78,6 +82,16 @@ export function validateLevel(level, { requireSolution = true } = {}) {
       for (const k of Object.keys(par)) if (!['steps', 'size'].includes(k)) p.push(`unknown par field '${k}' (use steps, size)`);
       if (par.steps !== undefined && !posInt(par.steps)) p.push('par.steps must be a whole number above 0');
       if (par.size !== undefined && !posInt(par.size)) p.push('par.size must be a whole number above 0');
+    }
+  }
+  if (level.floors !== undefined) {
+    if (!Array.isArray(level.floors) || !level.floors.length || level.floors.length > MAX_FLOORS) {
+      p.push(`floors must be a list of 1..${MAX_FLOORS} maps`);
+    } else {
+      level.floors.forEach((f, i) => {
+        const sub = validateLevel({ ...level, floors: undefined, map: f }, { requireSolution: false });
+        for (const q of sub) p.push(`test floor ${i + 2}: ${q}`);
+      });
     }
   }
   if (requireSolution && (typeof level.solution !== 'string' || !level.solution.trim())) p.push('solution is required');
@@ -165,7 +179,20 @@ export function normalizeLevel(level, opt) {
   if (level.solution !== undefined) out.solution = level.solution;
   if (level.hint !== undefined) out.hint = level.hint;
   if (level.par !== undefined) out.par = level.par;
+  if (level.floors !== undefined) out.floors = level.floors.map((f) => [...f]);
   return out;
+}
+
+/** Number of floors a level is tested on (the main map is floor 1). */
+export const floorCount = (level) => 1 + (level.floors ? level.floors.length : 0);
+
+/** The level as played on floor `i` (0 = main map): same rules, that floor's map. */
+export function floorLevel(level, i) {
+  if (!i) return level;
+  const map = level.floors && level.floors[i - 1];
+  if (!map) throw new RangeError(`level '${level.id}' has no floor ${i + 1}`);
+  const { floors, ...rest } = level;
+  return { ...rest, map };
 }
 
 export function levelToJSON(level) {

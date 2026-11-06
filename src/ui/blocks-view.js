@@ -4,7 +4,8 @@
 //
 // Click a palette tile to add it after the selected block (or at the end);
 // drag tiles or blocks (by their header) onto the gaps between blocks.
-// Selected block: Delete removes it, Alt+↑/↓ moves it within its list.
+// Selected block: Delete removes it, Alt+↑/↓ moves it within its list,
+// F9 toggles a breakpoint on its line (shown as a red dot on the block).
 import {
   render as renderText, palette, insertBlock, removeBlock, updateBlock, moveBlock, addBranch, removeBranch,
   renameFunction, nameProblem, clampCount, condText, parseCondition, getAt, placementProblem,
@@ -22,12 +23,14 @@ const key = (path) => path.join('.');
 
 export class BlockEditor {
   /** @param {HTMLElement} root  element with .blk-palette and .blk-program children */
-  constructor(root, { onChange = () => {}, onProblem = () => {} } = {}) {
+  constructor(root, { onChange = () => {}, onProblem = () => {}, onToggleBreakpoint = null } = {}) {
     this.root = root;
     this.paletteEl = root.querySelector('.blk-palette');
     this.programEl = root.querySelector('.blk-program');
     this.onChange = onChange;
     this.onProblem = onProblem;
+    this.onToggleBreakpoint = onToggleBreakpoint;
+    this.breakpoints = new Set();
     this.blocks = [];
     this.tools = {};
     this.selected = null; // path
@@ -55,8 +58,30 @@ export class BlockEditor {
       h.classList.toggle('mark-active', line > 0 && this.lineOf.get(k) === line && kind === 'active');
       h.classList.toggle('mark-break', line > 0 && this.lineOf.get(k) === line && kind === 'break');
       h.classList.toggle('mark-error', line > 0 && this.lineOf.get(k) === line && kind === 'error');
+      if (line > 0 && this.lineOf.get(k) === line) h.scrollIntoView({ block: 'nearest' });
     }
   }
+
+  /** Show breakpoint dots on the blocks whose header line is in `set`. */
+  setBreakpoints(set) {
+    this.breakpoints = new Set(set);
+    for (const [k, h] of this.headers) h.classList.toggle('bp', this.breakpoints.has(this.lineOf.get(k)));
+  }
+
+  /** Select (and scroll to) the block whose header is on `line`; false if none. */
+  selectLine(line) {
+    for (const [k, l] of this.lineOf) {
+      if (l !== line) continue;
+      const path = k.split('.').map((x) => (/^\d+$/.test(x) ? Number(x) : x));
+      this.select(path);
+      this.headers.get(k)?.scrollIntoView({ block: 'nearest' });
+      return true;
+    }
+    return false;
+  }
+
+  /** Line of the selected block's header (0 = none). */
+  selectedLine() { return this.selected ? this.lineOf.get(key(this.selected)) || 0 : 0; }
 
   commit(next) {
     if (!next) return;
@@ -194,6 +219,7 @@ export class BlockEditor {
     this.headers.set(k, h);
     h.tabIndex = 0;
     if (this.selected && key(this.selected) === k) h.classList.add('selected');
+    if (this.breakpoints.has(this.lineOf.get(k))) h.classList.add('bp');
     h.draggable = true;
     h.addEventListener('dragstart', (e) => {
       if (e.target !== h) return;
@@ -329,6 +355,12 @@ export class BlockEditor {
 
   key(e) {
     if (!this.selected || e.target.closest('input')) return;
+    if (e.key === 'F9' && this.onToggleBreakpoint) {
+      e.preventDefault();
+      const line = this.selectedLine();
+      if (line) this.onToggleBreakpoint(line);
+      return;
+    }
     const path = this.selected;
     const i = path[path.length - 1];
     const listPath = path.slice(0, -1);

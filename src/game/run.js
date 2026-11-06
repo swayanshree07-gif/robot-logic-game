@@ -13,6 +13,7 @@ import { checkTools } from '../lang/restrict.js';
 import { VM, DEFAULT_MAX_TICKS } from '../lang/vm.js';
 import { CogError } from '../lang/errors.js';
 import { World } from '../world/world.js';
+import { floorCount, floorLevel } from '../world/level.js';
 
 export { DEFAULT_MAX_TICKS };
 
@@ -114,4 +115,23 @@ export function runLevel(source, level, opt = {}) {
   };
   if (r.error) out.error = r.error;
   return out;
+}
+
+/**
+ * Run `source` on every floor of `level` (main map first). Returns
+ * { result, floors: [runLevel result per floor], failed } where result is
+ * 'win' only if every floor wins, and failed is the 0-based index of the
+ * first floor that didn't (-1 if none). Floors listed in `skip` aren't run
+ * (their entry is null), e.g. the floor the player just watched.
+ */
+export function runFloors(source, level, { skip = [], ...opt } = {}) {
+  const floors = [];
+  let failed = -1;
+  for (let i = 0; i < floorCount(level); i++) {
+    if (skip.includes(i)) { floors.push(null); continue; }
+    const r = runLevel(source, floorLevel(level, i), opt);
+    floors.push(r);
+    if (failed < 0 && r.result !== 'win') failed = i;
+  }
+  return { result: failed < 0 ? 'win' : floors[failed].result, floors, failed };
 }

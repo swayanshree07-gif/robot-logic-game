@@ -18,7 +18,14 @@
 //
 // Breakpoints are line numbers; they survive reset and program edits. Run
 // pauses *before* a breakpoint line; Run/Resume or Step continue past it.
-import { Runner, describeResult, DEFAULT_MAX_TICKS } from './run.js';
+//
+// Test floors (level.floors): the player watches one floor at a time
+// (setFloor). When the watched run wins, the program is also run headlessly on
+// every other floor; the result is only a win if all of them win, otherwise a
+// 'fail' naming the floor (result.floorFail, 0-based). Stars are always scored
+// on floor 1 (the main map), so par means the same whichever floor is watched.
+import { Runner, runLevel, describeResult, DEFAULT_MAX_TICKS } from './run.js';
+import { floorCount, floorLevel } from '../world/level.js';
 import { World } from '../world/world.js';
 import { scoreRun, parLine } from './score.js';
 import { analyze } from '../lang/lint.js';
@@ -43,6 +50,7 @@ export class PlaySession {
     this.level = level;
     this.source = '';
     this.breakpoints = new Set();
+    this.floor = 0;
     this.setSpeed(speed);
     this.reset();
   }
@@ -51,6 +59,20 @@ export class PlaySession {
     const s = SPEEDS.find((x) => x.id === id);
     if (!s) throw new Error(`unknown speed '${id}'`);
     this.speed = s;
+  }
+
+  /** How many floors this level is tested on (1 = just the main map). */
+  get floors() { return floorCount(this.level); }
+
+  /** The level as played on the watched floor. */
+  get played() { return floorLevel(this.level, this.floor); }
+
+  /** Watch another test floor (0-based); throws away any run in progress. */
+  setFloor(i) {
+    if (!Number.isInteger(i) || i < 0 || i >= this.floors) throw new RangeError(`no floor ${i + 1}`);
+    if (i === this.floor) return;
+    this.floor = i;
+    this.reset();
   }
 
   /** Changing the program throws away any run in progress. */
@@ -71,7 +93,7 @@ export class PlaySession {
   reset() {
     this.state = 'edit';
     this.runner = null;
-    this.world = new World(this.level);
+    this.world = new World(this.played);
     this.result = null; // { result, ticks, size, unmet, error, message }
     this.line = 0; // line of the last executed action (0 = none)
     this.bump = null;
@@ -91,7 +113,7 @@ export class PlaySession {
   /** Start a fresh run; returns false if the program didn't compile (state becomes done). */
   start() {
     this.reset();
-    this.runner = new Runner(this.source, this.level);
+    this.runner = new Runner(this.source, this.played);
     this.world = this.runner.world;
     if (this.runner.done) { this.end(); return false; }
     return true;
@@ -184,8 +206,27 @@ export class PlaySession {
     this.state = 'done';
     const summary = { result: r.result, ticks: r.ticks, size: r.size, unmet: this.world.unmetGoals(), error: r.error };
     summary.message = describeResult(summary);
-    summary.score = scoreRun(summary, this.level.par);
+    if (summary.result === 'win' && this.floors > 1) this.checkFloors(summary);
+    if (summary.result === 'win') {
+      const main = this.floor === 0 ? summary : runLevel(this.source, this.level);
+      summary.score = scoreRun(main, this.level.par);
+    } else summary.score = scoreRun(summary, this.level.par);
     this.result = summary;
+  }
+
+  /** A win on the watched floor only counts if every other floor wins too. */
+  checkFloors(summary) {
+    for (let i = 0; i < this.floors; i++) {
+      if (i === this.floor) continue;
+      const r = runLevel(this.source, floorLevel(this.level, i));
+      if (r.result === 'win') continue;
+      summary.result = 'fail';
+      summary.floorFail = i;
+      summary.message = `It works on floor ${this.floor + 1}, but not on test floor ${i + 1}: ${floorReason(r)} Watch floor ${i + 1} to see why.`;
+      return;
+    }
+    summary.floors = this.floors;
+    summary.message = `${summary.message} Passed all ${this.floors} test floors.${this.floor ? ' Stars are scored on floor 1.' : ''}`;
   }
 
   /**
@@ -235,8 +276,18 @@ export class PlaySession {
       canStop: s === 'running' || s === 'paused',
       canReset: s !== 'edit',
       result: this.result,
+      floor: this.floor,
+      floors: this.floors,
     };
   }
+}
+
+/** Why a headless run on another floor didn't win, as one short sentence. */
+function floorReason(r) {
+  if (r.result === 'fail') return `the program ends with the job unfinished (${r.unmet.join('; ')}).`;
+  if (r.result === 'timeout') return 'the battery runs flat.';
+  if (r.result === 'loop') return 'Pip gets stuck in a loop.';
+  return `${r.error ? r.error.message.replace(/\.$/, '') : r.result}.`;
 }
 
 /** Banner shown when a run ends: { kind, title, text, next } (next = offer "next level"). */
@@ -250,7 +301,9 @@ export function resultBanner(result, { hasNext = false } = {}) {
         stars: sc ? sc.stars : 1, par: sc && (sc.steps.par !== null || sc.size.par !== null) ? parLine(sc) : '',
       };
     }
-    case 'fail': return { kind: 'fail', title: 'Not quite', text: result.message, next: false };
+    case 'fail': return result.floorFail !== undefined
+      ? { kind: 'fail', title: 'Calibration failed', text: result.message, next: false, floor: result.floorFail }
+      : { kind: 'fail', title: 'Not quite', text: result.message, next: false };
     case 'timeout': return { kind: 'fail', title: 'Battery flat', text: `${result.error.detail}. ${result.error.hint ? `Hint: ${result.error.hint}.` : ''}`.trim(), next: false };
     case 'loop': return { kind: 'fail', title: 'Stuck in a loop', text: result.error.hint || result.error.message, next: false };
     case 'stopped': return null;

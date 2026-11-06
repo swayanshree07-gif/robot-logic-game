@@ -4,6 +4,9 @@
 //
 // The search runs the real World rules (no separate model to drift), cloning
 // the world for each branch. `wait` never helps, so it is not tried.
+// By default `drop` is only tried on a bin: putting a part back on the floor
+// only matters for puzzles built around it, and it multiplies the state space
+// (pass { floorDrops: true } to allow it).
 import { World } from '../world/world.js';
 
 const TRY = ['move', 'left', 'right', 'grab', 'drop'];
@@ -23,7 +26,7 @@ function cloneWorld(w) {
  * Returns { steps, actions } or null if no win exists within `maxStates`
  * explored states. Actions restricted to level.tools.actions when given.
  */
-export function solve(level, { maxStates = 200000 } = {}) {
+export function solve(level, { maxStates = 200000, floorDrops = false } = {}) {
   const allowed = TRY.filter((a) => !level.tools?.actions || level.tools.actions.includes(a));
   const start = new World(level);
   if (start.isWon()) return { steps: 0, actions: [] };
@@ -33,6 +36,7 @@ export function solve(level, { maxStates = 200000 } = {}) {
     const next = [];
     for (const { w, path } of frontier) {
       for (const a of allowed) {
+        if (a === 'drop' && !floorDrops && w.tile(w.robot.x, w.robot.y) !== 'bin') continue;
         const c = cloneWorld(w);
         if (!c.act(a).ok) continue;
         const k = c.stateKey();

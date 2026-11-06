@@ -1,12 +1,15 @@
 // Browser entry point: the level screen. All run logic is in PlaySession
 // (src/game/session.js); this file wires it to the DOM and the canvas.
-import { LEVELS, WORLDS, levelPlace } from '../game/levels.js';
+import { LEVELS, WORLDS, ALL_LEVELS, levelPlace } from '../game/levels.js';
 import { PlaySession, SPEEDS, resultBanner } from '../game/session.js';
 import { describeGoal, normalizeLevel } from '../world/level.js';
 import { formatError } from '../lang/errors.js';
 import { draw } from './render.js';
 import { Animator, tweenMs } from './art.js';
 import { CodeEditor } from './editor.js';
+import { BlockEditor } from './blocks-view.js';
+import { toText } from '../lang/blocks.js';
+import { enterBlocks, blockedMessage, blockMark } from './code-mode.js';
 import { starText, mergeBest, recordStars } from '../game/score.js';
 
 const $ = (id) => document.getElementById(id);
@@ -23,27 +26,74 @@ let dirty = true;
 const anim = new Animator();
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
-const editor = new CodeEditor($('editor-root'), {
-  onChange(text) {
-    store.set(`draft.${session.level.id}`, text);
-    session.setSource(text);
-    dirty = true;
-  },
-  onToggleBreakpoint(line) {
-    session.toggleBreakpoint(line);
-    editor.setBreakpoints(session.breakpoints);
-    store.set(`bp.${session.level.id}`, JSON.stringify([...session.breakpoints]));
-    dirty = true;
-  },
+let mode = 'text'; // 'text' | 'blocks' (remembered in localStorage)
+let notice = ''; // one-off message for the status line while editing (cleared on the next edit)
+
+/** The program changed (from either editor): save the draft and hand it to the session. */
+function applySource(text) {
+  notice = '';
+  store.set(`draft.${session.level.id}`, text);
+  session.setSource(text);
+  dirty = true;
+}
+
+function toggleBreakpoint(line) {
+  session.toggleBreakpoint(line);
+  editor.setBreakpoints(session.breakpoints);
+  blockEditor.setBreakpoints(session.breakpoints);
+  store.set(`bp.${session.level.id}`, JSON.stringify([...session.breakpoints]));
+  dirty = true;
+}
+
+const editor = new CodeEditor($('editor-root'), { onChange: applySource, onToggleBreakpoint: toggleBreakpoint });
+const blockEditor = new BlockEditor($('blocks-root'), {
+  // blocks only ever reach the session as Cog text, so both editors stay in sync
+  onChange(blocks) { const text = toText(blocks); editor.value = text; applySource(text); },
+  onProblem(msg) { notice = msg; dirty = true; },
+  onToggleBreakpoint: toggleBreakpoint,
 });
+
+/**
+ * Switch editors. Blocks need a program that parses; if it doesn't, stay in
+ * (or fall back to) text mode and point at the error. Returns the mode in use.
+ */
+function setMode(next, { save = true } = {}) {
+  if (next === 'blocks') {
+    const r = enterBlocks(editor.value);
+    if (r.ok) {
+      if (r.text !== editor.value) { editor.value = r.text; applySource(r.text); } // tidy layout; lines unchanged
+      blockEditor.set(r.blocks, normalizeLevel(session.level).tools);
+      blockEditor.setBreakpoints(session.breakpoints);
+    } else {
+      next = 'text';
+      notice = blockedMessage(formatError(editor.value, r.error));
+      editor.showError(r.error);
+    }
+  }
+  mode = next;
+  $('editor-root').hidden = mode !== 'text';
+  $('blocks-root').hidden = mode !== 'blocks';
+  $('mode-text').setAttribute('aria-pressed', String(mode === 'text'));
+  $('mode-blocks').setAttribute('aria-pressed', String(mode === 'blocks'));
+  if (save) store.set('mode', mode);
+  dirty = true;
+  return mode;
+}
+
+/** Replace the whole program (level load, dev params), keeping the block view in step. */
+function setProgram(text) {
+  editor.value = text;
+  session.setSource(text);
+  if (mode === 'blocks') setMode('blocks', { save: false });
+}
 
 function loadBreakpoints(id) {
   try { return JSON.parse(store.get(`bp.${id}`) || '[]').filter(Number.isInteger); } catch { return []; }
 }
 
-function loadLevel(i) {
+/** Open level `i` of LEVELS (or, for dev URLs, any level object, e.g. a prototype fixture). */
+function loadLevel(i, level = LEVELS[i]) {
   index = i;
-  const level = LEVELS[i];
   const speed = store.get('speed') || 'normal';
   session = new PlaySession(level, { speed: SPEEDS.some((s) => s.id === speed) ? speed : 'normal' });
   const place = levelPlace(level);
@@ -58,12 +108,40 @@ function loadLevel(i) {
   if (t.sensors.length) parts.push(`sensors: ${t.sensors.join(' ')}`);
   $('tools').textContent = `Unlocked — ${parts.join(' · ')}`;
   showPar(level);
+  buildFloors();
   $('level-select').value = String(i);
-  editor.value = store.get(`draft.${level.id}`) ?? '';
+  notice = '';
   session.setBreakpoints(loadBreakpoints(level.id));
   editor.setBreakpoints(session.breakpoints);
-  session.setSource(editor.value);
+  setProgram(store.get(`draft.${level.id}`) ?? '');
   shownResult = null;
+  dirty = true;
+}
+
+/** Test-floor buttons ("Test floor 1 2 3"), only for levels that have extra floors. */
+function buildFloors() {
+  const box = $('floors');
+  const n = session.floors;
+  box.hidden = n < 2;
+  if (n < 2) { box.replaceChildren(); return; }
+  const label = document.createElement('span');
+  label.textContent = 'Test floor';
+  box.replaceChildren(label, ...Array.from({ length: n }, (_, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = String(i + 1);
+    b.title = i === 0 ? 'Main floor (stars are scored here)' : `Watch the program on test floor ${i + 1}`;
+    b.onclick = () => watchFloor(i);
+    return b;
+  }));
+  const note = document.createElement('small');
+  note.textContent = `the program must work on all ${n}`;
+  box.append(note);
+}
+
+function watchFloor(i) {
+  session.setFloor(i);
+  shownResult = undefined; // force the banner to refresh
   dirty = true;
 }
 
@@ -98,8 +176,8 @@ function labelLevels() {
   }
 }
 
-/** Short world label for level numbers: 1..5, or P for the prototype bay. */
-const worldTag = (w) => (w.id === 'lab' ? 'P' : String(WORLDS.indexOf(w) + 1));
+/** Short world label for level numbers: 1..5. */
+const worldTag = (w) => String(WORLDS.indexOf(w) + 1);
 
 /** Text with `backtick` spans shown as <code> (built with DOM nodes, never innerHTML). */
 function setRichText(el, text) {
@@ -136,6 +214,10 @@ function render() {
   $('stop').disabled = !v.canStop;
   $('reset').disabled = !v.canReset;
 
+  [...$('floors').querySelectorAll('button')].forEach((b, i) => {
+    b.setAttribute('aria-pressed', String(i === v.floor));
+    b.classList.toggle('failed', v.result?.floorFail === i);
+  });
   $('hud-state').textContent = v.state.toUpperCase();
   $('hud-state').className = `pill ${v.state}`;
   $('hud-steps').textContent = v.ticks;
@@ -150,9 +232,11 @@ function render() {
   $('size').textContent = size ? `size ${size}` : '';
 
   renderFunctions(v);
+  if (mode === 'blocks') { const m = blockMark(v); blockEditor.setMark(m.line, m.kind); }
   if (v.state === 'edit') {
     editor.clearMarks();
-    if (v.warnings.length) {
+    if (notice) setStatus(notice, 'warn');
+    else if (v.warnings.length) {
       const more = v.warnings.length > 1 ? `\n(+${v.warnings.length - 1} more warning${v.warnings.length > 2 ? 's' : ''})` : '';
       setStatus(`Warning: ${formatError(editor.value, v.warnings[0])}${more}`, 'warn');
     } else setStatus('Ready. Press Run, or Step to go one action at a time.');
@@ -196,7 +280,7 @@ function renderFunctions(v) {
       : unused.has(f.line) ? ' · <span class="warn">never called</span>' : '';
     const calls = v.state === 'edit' ? '' : ` · called ${f.calls}×`;
     b.innerHTML = `<b>${esc(f.name)}</b> line ${f.line}${calls}${state}`;
-    b.onclick = () => editor.goToLine(f.line);
+    b.onclick = () => (mode === 'blocks' ? blockEditor.selectLine(f.line) : editor.goToLine(f.line));
     const e = document.createElement('li');
     if (f.active) e.className = 'running';
     e.append(b);
@@ -214,6 +298,8 @@ function showResult(result) {
   $('banner-title').textContent = b.title;
   $('banner-text').textContent = b.text;
   $('banner-next').hidden = !b.next;
+  $('banner-floor').hidden = b.floor === undefined;
+  if (b.floor !== undefined) { $('banner-floor').textContent = `Watch floor ${b.floor + 1} ▶`; $('banner-floor').dataset.floor = String(b.floor); }
   $('banner-stars').textContent = b.stars ? starText(b.stars) : '';
   $('banner-par').textContent = b.par || '';
   if (result.result === 'win' && result.score) {
@@ -230,7 +316,7 @@ function showResult(result) {
     setStatus(result.message, result.result === 'win' ? 'win' : 'error');
     editor.setActive(session.line);
   }
-  (b.next ? $('banner-next') : $('banner-retry')).focus({ preventScroll: true });
+  (b.next ? $('banner-next') : b.floor !== undefined ? $('banner-floor') : $('banner-retry')).focus({ preventScroll: true });
 }
 
 // --- controls ---
@@ -241,7 +327,10 @@ $('stop').onclick = act(() => session.stop());
 $('reset').onclick = act(() => session.reset());
 $('step-over').onclick = act(() => session.stepOver());
 $('step-out').onclick = act(() => session.stepOut());
-$('banner-retry').onclick = act(() => { session.reset(); editor.ta.focus(); });
+$('banner-retry').onclick = act(() => { session.reset(); if (mode === 'text') editor.ta.focus(); });
+$('mode-text').onclick = () => setMode('text');
+$('mode-blocks').onclick = () => setMode('blocks');
+$('banner-floor').onclick = act(() => { watchFloor(Number($('banner-floor').dataset.floor)); session.run(); });
 $('banner-next').onclick = () => loadLevel(Math.min(index + 1, LEVELS.length - 1));
 
 const speedSel = $('speed');
@@ -294,16 +383,23 @@ function frame(now) {
 // &run=all runs the program instantly; &solve=1 loads the level's known solution and runs it at instant speed.
 const params = new URLSearchParams(location.search);
 // &code=... (URL-encoded) loads that program instead of the saved draft.
+// &floor=N (1-based) watches that test floor.
 const start = Math.min(LEVELS.length, Math.max(1, Number(params.get('level')) || 1)) - 1;
-loadLevel(start);
-if (params.has('code')) { editor.value = params.get('code'); session.setSource(editor.value); }
+// &mode=text|blocks picks the editor (not saved); otherwise the saved choice.
+mode = params.get('mode') === 'blocks' || (!params.has('mode') && store.get('mode') === 'blocks') ? 'blocks' : 'text';
+// &id=<level id> opens any level by id, including test-fixture prototypes (dev only).
+const byId = params.has('id') ? ALL_LEVELS.find((l) => l.id === params.get('id')) : null;
+loadLevel(byId && LEVELS.includes(byId) ? LEVELS.indexOf(byId) : start, byId || undefined);
+setMode(mode, { save: false });
+if (params.has('code')) setProgram(params.get('code'));
+if (Number(params.get('floor')) > 1 && Number(params.get('floor')) <= session.floors) watchFloor(Number(params.get('floor')) - 1);
 if (params.has('bp')) { // &bp=2,4 sets breakpoints (not saved)
   session.setBreakpoints(params.get('bp').split(',').map(Number).filter((n) => n > 0));
   editor.setBreakpoints(session.breakpoints);
+  blockEditor.setBreakpoints(session.breakpoints);
 }
 if (params.get('solve') === '1') {
-  editor.value = LEVELS[start].solution;
-  session.setSource(editor.value);
+  setProgram(session.level.solution);
   session.setSpeed('instant');
   session.run();
 } else if (params.get('run') === '1') session.step();

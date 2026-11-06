@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 // Prints a table per world: par steps/size, solver optimum, solution steps/size,
-// battery, and the commands each level unlocks. Exits 1 if any level's solution
-// fails or its par disagrees with the solver. Usage: node scripts/level-report.mjs [--md]
+// battery, test floors, and the commands each level unlocks. Exits 1 if any
+// level's solution fails (on any floor) or its par disagrees with the solver.
+// Levels with test floors: par steps = the solution's steps on floor 1, which
+// may be above the one-floor optimum (a hard-coded route) but never below it. Usage: node scripts/level-report.mjs [--md]
 import { WORLDS } from '../src/game/levels.js';
-import { runLevel } from '../src/game/run.js';
+import { runLevel, runFloors } from '../src/game/run.js';
+import { floorCount } from '../src/world/level.js';
 import { solve } from '../src/game/solver.js';
 
 const md = process.argv.includes('--md');
@@ -11,7 +14,7 @@ let problems = 0;
 const out = [];
 for (const world of WORLDS) {
   out.push(md ? `\n### ${world.name}\n` : `\n${world.name}`);
-  const head = ['#', 'id', 'name', 'opt', 'par steps', 'par size', 'sol steps', 'sol size', 'battery', 'new'];
+  const head = ['#', 'id', 'name', 'opt', 'par steps', 'par size', 'sol steps', 'sol size', 'battery', 'floors', 'new'];
   const rows = [];
   const seen = new Set();
   world.levels.forEach((l, i) => {
@@ -21,12 +24,17 @@ for (const world of WORLDS) {
     const fresh = tools.filter((t) => !seen.has(t));
     tools.forEach((t) => seen.add(t));
     const bad = [];
+    const floors = floorCount(l);
+    const all = runFloors(l.solution, l);
     if (run.result !== 'win') bad.push(`solution ${run.result}`);
-    if (l.par && best && l.par.steps !== best.steps) bad.push(`par steps ${l.par.steps} ≠ optimum ${best.steps}`);
+    else if (all.result !== 'win') bad.push(`solution ${all.result} on floor ${all.failed + 1}`);
+    if (!best) bad.push('solver found no win');
+    if (l.par && best && floors === 1 && l.par.steps !== best.steps) bad.push(`par steps ${l.par.steps} ≠ optimum ${best.steps}`);
+    if (l.par && best && floors > 1 && (l.par.steps !== run.ticks || l.par.steps < best.steps)) bad.push(`par steps ${l.par.steps} ≠ solution ${run.ticks} (optimum ${best.steps})`);
     if (l.par && l.par.size !== run.size) bad.push(`par size ${l.par.size} ≠ solution ${run.size}`);
     problems += bad.length;
     rows.push([i + 1, l.id, l.name, best ? best.steps : '?', l.par?.steps ?? '-', l.par?.size ?? '-',
-      run.ticks, run.size, l.maxSteps ?? 2000, fresh.join(' ') + (bad.length ? `  !! ${bad.join('; ')}` : '')].map(String));
+      run.ticks, run.size, l.maxSteps ?? 2000, floors, fresh.join(' ') + (bad.length ? `  !! ${bad.join('; ')}` : '')].map(String));
   });
   if (md) {
     out.push(`| ${head.join(' | ')} |`, `|${head.map(() => '---').join('|')}|`, ...rows.map((r) => `| ${r.join(' | ')} |`));

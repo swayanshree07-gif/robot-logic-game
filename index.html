@@ -20,6 +20,7 @@
       <p id="brief" class="brief"></p>
       <p id="goal" class="goal"></p>
       <p id="par" class="par"></p>
+      <div id="floors" class="floors" role="group" aria-label="Test floor" hidden></div>
       <div class="board-wrap">
         <canvas id="board" width="640" height="400" aria-label="Factory floor"></canvas>
         <div id="banner" class="banner" hidden role="alertdialog" aria-labelledby="banner-title">
@@ -30,6 +31,7 @@
             <p id="banner-par" class="par-line"></p>
             <div class="banner-buttons">
               <button id="banner-retry" type="button">↺ Try again</button>
+              <button id="banner-floor" type="button" class="primary" hidden>Watch floor 2 ▶</button>
               <button id="banner-next" type="button" class="primary">Next level ▶</button>
             </div>
           </div>
@@ -58,12 +60,20 @@
       <div class="code-head">
         <label for="editor">Pip's program <small>(Cog)</small></label>
         <span id="size" class="size"></span>
+        <span class="mode-toggle" role="group" aria-label="Editor">
+          <button id="mode-text" type="button" aria-pressed="true" title="Type the program as Cog text">Text</button>
+          <button id="mode-blocks" type="button" aria-pressed="false" title="Build the program from blocks">Blocks</button>
+        </span>
       </div>
       <p id="tools" class="tools"></p>
       <div class="editor" id="editor-root">
         <div class="gutter" aria-hidden="true"></div>
         <div class="band" hidden></div>
         <textarea id="editor" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" rows="16"></textarea>
+      </div>
+      <div class="blocks" id="blocks-root" hidden>
+        <div class="blk-palette" aria-label="Command tray"></div>
+        <div class="blk-program" aria-label="Program blocks"></div>
       </div>
       <div id="fn-panel" class="fn-panel" hidden>
         <h4>Functions <small>(click to jump to the def)</small></h4>
@@ -95,7 +105,10 @@ combine: not  and  or  ( )
 keys: Ctrl+Enter run/pause · Ctrl+Shift+Enter step
       Esc reset · Tab / Shift+Tab indent
       F9 or click a line number: breakpoint
-      F10 step over · Shift+F11 step out</pre>
+      F10 step over · Shift+F11 step out
+blocks: click a tile to add it after the selected
+      block, or drag it into a gap · Delete removes
+      · Alt+↑/↓ moves · F9 breakpoint</pre>
       </details>
     </section>
   </main>
