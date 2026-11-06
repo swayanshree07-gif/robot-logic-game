@@ -6,7 +6,8 @@
 //           program; the level's `solution` is written to hit it exactly
 // Stars for a run: 0 if not won, otherwise 1 + one for meeting each par.
 // Steps and size often pull in different directions, so a level's three stars
-// may need two different programs; best stars are kept per level.
+// may need two different programs: each par star, once earned, is kept, so the
+// best record per level ({ won, steps, size }, see mergeBest) adds them up.
 
 /** Score a finished run ({ result, ticks, size }) against `par` (may be missing). */
 export function scoreRun(run, par) {
@@ -28,5 +29,22 @@ export function parLine(score) {
   return `${part('Steps', score.steps)} · ${part('Size', score.size)}`;
 }
 
-/** Combine a stored best (0..3 or null) with a new score. */
+/** Combine a stored best (0..3 or null) with a new score (count only; prefer mergeBest). */
 export const bestStars = (prev, score) => Math.max(prev || 0, score.stars);
+
+/**
+ * Best record for a level: { won, steps, size } booleans, each kept once earned
+ * in any run. `prev` may be null or a malformed stored value.
+ */
+export function mergeBest(prev, score) {
+  const p = prev && typeof prev === 'object' ? prev : {};
+  const won = Boolean(p.won) || score.stars > 0;
+  return {
+    won,
+    steps: Boolean(p.steps) || Boolean(score.steps?.ok),
+    size: Boolean(p.size) || Boolean(score.size?.ok),
+  };
+}
+
+/** Stars (0..3) for a best record from mergeBest. */
+export const recordStars = (best) => (best && best.won ? 1 + Boolean(best.steps) + Boolean(best.size) : 0);

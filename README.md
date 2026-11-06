@@ -21,6 +21,7 @@ Requires Node 18+.
 ```sh
 node --test test/                 # parser, VM, world, runner, debugger, errors, every level's solution, solver
 node scripts/check-static.mjs     # browser files/imports exist and parse
+node scripts/level-report.mjs     # per-world table: optimum, par, solution steps/size, battery, new commands (--md for Markdown)
 UPDATE_SNAPSHOTS=1 node --test test/errors.test.js   # regenerate error-message snapshots
 scripts/screenshots.sh            # headless-Firefox smoke shots -> .tmp/shots/ (optional)
 ```
@@ -65,8 +66,10 @@ function, or the pair of functions calling each other.
 possible, found by the BFS solver) and **size** (statements in the shortest
 known program). Finishing earns ★, matching each par earns another. The two
 pars often need different programs (1-8: the nested repeat is small, the
-fastest route is longer to write). Best stars are saved per level and shown in
-the level picker and under the goal.
+fastest route is longer to write), so each par star is kept once earned and
+they add up across runs: meet the step par in one run and the size par in
+another for ★★★. The best record is saved per level (`ferrolab.best.<id>` in
+localStorage) and shown in the level picker and under the goal.
 
 **Look:** the factory floor is pixel art drawn entirely in code (16 art pixels
 per tile, scaled by whole numbers): steel floor plates with grates and bolts,
@@ -149,7 +152,11 @@ level's idea is really used (e.g. nested repeat on 1-8, repeat beats the flat
 program), and that 1-7's battery equals the optimum found by the BFS solver
 (`src/game/solver.js`, which also proves every level solvable). It also
 checks every World 1 par: steps equal the solver's optimum, size equals the
-stored solution's, and solutions trigger no warnings. Par format:
+stored solution's, and solutions trigger no warnings. `test/world1-play.test.js` plays
+World 1 through `PlaySession` like the page does: every level wins with the
+size star and offers the next level, ★★★ is reachable on every level, common
+first mistakes (short, overshooting into a wall, wrong turn, locked command)
+give a clear banner, and briefs only show unlocked commands. Par format:
 `par: { steps, size }` (optional, validated by `level.js`).
 
 ## Layout
@@ -170,13 +177,17 @@ stored solution's, and solutions trigger no warnings. Par format:
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
-Day 6 of 30 (milestones through Day 8 done): language core with friendly
+Day 7 of 30 (milestones through Day 8 done; Day 9 block editor in progress):
+language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1
 with validation, per-level unlocked commands and reach/collect/deliver win
-rules; World 1 (8 levels) with par scores and stars, plus 5 prototype levels; a
+rules; World 1 (8 levels) with par scores and stars that add up across runs,
+plus 5 prototype levels; a
 level-screen UI with line-numbered editor, Run/Pause/Step/Stop/Reset, speed
 control, HUD and result banner; code-drawn pixel art with tweened animation; a
 step debugger with breakpoints, step over / step out, a call-stack /
 repeat-block panel and a function panel; lint warnings; a BFS solver for level
-verification. 104 automated tests. Next: Day 9 — block editor with lossless
-round-trip to Cog text.
+verification; a level report script. The block model with text round-trip
+(`src/lang/blocks.js`, tested) exists, but its editor (`src/ui/blocks-view.js`)
+isn't wired into the page yet. 123 automated tests. Next: Day 9, which means
+finishing the block editor in the UI.

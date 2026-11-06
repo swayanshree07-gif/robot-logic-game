@@ -301,3 +301,10 @@ export function parse(source) {
 
   return { main: root.body, functions };
 }
+
+/** Parse just a condition (e.g. from a block editor field). Errors report line 1, columns within `text`. */
+export function parseCondition(text) {
+  const head = { v: 'if', raw: 'if', col: 0, len: 0 };
+  if (String(text).includes('#')) throw err("conditions can't contain '#'", 1, { col: String(text).indexOf('#') + 1, len: 1 });
+  return parseCond(tokenizeLine(String(text)), 1, head);
+}

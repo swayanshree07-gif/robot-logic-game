@@ -7,7 +7,7 @@ import { formatError } from '../lang/errors.js';
 import { draw } from './render.js';
 import { Animator, tweenMs } from './art.js';
 import { CodeEditor } from './editor.js';
-import { starText, bestStars } from '../game/score.js';
+import { starText, mergeBest, recordStars } from '../game/score.js';
 
 const $ = (id) => document.getElementById(id);
 const ctx = $('board').getContext('2d');
@@ -67,8 +67,13 @@ function loadLevel(i) {
   dirty = true;
 }
 
-/** Best stars so far for a level (0..3, kept in localStorage). */
-const savedStars = (id) => Math.min(3, Math.max(0, Number(store.get(`stars.${id}`)) || 0));
+/** Best record for a level ({ won, steps, size }, kept in localStorage as `best.<id>`). */
+function savedBest(id) {
+  try { return JSON.parse(store.get(`best.${id}`) || 'null'); } catch { return null; }
+}
+/** Best stars so far (0..3). Older saves only kept a count in `stars.<id>`; never show less than that. */
+const savedStars = (id) => Math.max(recordStars(savedBest(id)),
+  Math.min(3, Math.max(0, Number(store.get(`stars.${id}`)) || 0)));
 
 /** "Par: 29 steps · size 8 · best ★★☆" under the goal. */
 function showPar(level) {
@@ -213,8 +218,9 @@ function showResult(result) {
   $('banner-par').textContent = b.par || '';
   if (result.result === 'win' && result.score) {
     const id = session.level.id;
-    const best = bestStars(savedStars(id), result.score);
-    if (best > savedStars(id)) { store.set(`stars.${id}`, String(best)); showPar(session.level); labelLevels(); }
+    const before = savedStars(id);
+    store.set(`best.${id}`, JSON.stringify(mergeBest(savedBest(id), result.score)));
+    if (savedStars(id) > before) { showPar(session.level); labelLevels(); }
   }
   if (result.error) {
     setStatus(formatError(editor.value, result.error), 'error');
