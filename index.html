@@ -10,6 +10,11 @@
   <header class="topbar">
     <h1>Night Shift at <span>Ferrolab</span></h1>
     <button id="open-map" type="button" class="map-btn" title="World map and level select (M)">▦ Map</button>
+    <div class="sound" role="group" aria-label="Sound">
+      <button id="sound-mute" type="button" class="sound-btn" aria-pressed="false" title="Mute / unmute sound">🔊</button>
+      <input id="sound-volume" type="range" min="0" max="100" step="5" aria-label="Volume" title="Volume">
+      <label class="sound-hum" title="Ambient factory hum"><input id="sound-hum" type="checkbox"> Hum</label>
+    </div>
     <label class="picker">Level <select id="level-select"></select></label>
   </header>
   <main id="map" class="map-screen" hidden aria-label="World map"></main>

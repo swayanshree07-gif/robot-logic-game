@@ -10,6 +10,12 @@ body { margin: 0; background: var(--bg); color: var(--ink); }
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; background: var(--panel); border-bottom: 1px solid var(--line); }
 .topbar h1 { margin-right: auto; }
 .map-btn { margin-right: 14px; padding: 5px 12px; }
+.sound { display: flex; align-items: center; gap: 6px; margin-right: 14px; font-size: .85rem; color: var(--dim); }
+.sound-btn { padding: 3px 8px; min-width: 2.2em; }
+.sound-btn[aria-pressed="true"] { opacity: .7; }
+.sound input[type="range"] { width: 80px; accent-color: var(--accent); }
+.sound input[type="range"]:disabled, .sound-hum:has(input:disabled) { opacity: .45; }
+.sound-hum { display: flex; align-items: center; gap: 3px; cursor: pointer; }
 .map-btn[aria-pressed="true"] { background: var(--accent); color: #241a05; }
 h1 { font-size: 1.15rem; margin: 0; letter-spacing: .04em; }
 h1 span { color: var(--accent); }

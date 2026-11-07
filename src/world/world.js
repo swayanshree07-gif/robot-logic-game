@@ -144,14 +144,15 @@ export class World {
       }
       case 'drop': {
         if (!r.holding) return { ok: false, error: 'Pip is not holding anything', code: 'drop' };
-        if (this.tile(r.x, r.y) === 'bin') {
+        const intoBin = this.tile(r.x, r.y) === 'bin';
+        if (intoBin) {
           this.delivered++;
         } else {
           if (this.itemAt(r.x, r.y) >= 0) return { ok: false, error: 'there is already a part on this tile', code: 'drop' };
           this.items.push({ x: r.x, y: r.y });
         }
         r.holding--;
-        this.log.push({ type: 'drop', x: r.x, y: r.y });
+        this.log.push({ type: 'drop', x: r.x, y: r.y, bin: intoBin });
         return { ok: true };
       }
       default: return { ok: false, error: `unknown action ${name}` };

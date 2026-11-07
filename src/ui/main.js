@@ -6,6 +6,7 @@ import { describeGoal, normalizeLevel } from '../world/level.js';
 import { formatError } from '../lang/errors.js';
 import { draw } from './render.js';
 import { Animator, tweenMs } from './art.js';
+import { Sound, SoundCues } from './audio.js';
 import { CodeEditor } from './editor.js';
 import { BlockEditor } from './blocks-view.js';
 import { toText } from '../lang/blocks.js';
@@ -415,6 +416,30 @@ WORLDS.forEach((w) => {
 labelLevels();
 sel.onchange = () => loadLevel(Number(sel.value));
 
+// --- sound ---
+// Settings live in the save (volume 0..1, muted, hum); the audio context only
+// starts on the first click or key press (browser autoplay rules).
+const sfx = new Sound({ volume: save.setting('volume'), muted: save.setting('muted'), hum: save.setting('hum') });
+const sfxCues = new SoundCues();
+function renderSound() {
+  $('sound-mute').textContent = sfx.muted ? '🔇' : '🔊';
+  $('sound-mute').setAttribute('aria-pressed', String(sfx.muted));
+  $('sound-mute').title = sfx.muted ? 'Unmute sound' : 'Mute sound';
+  $('sound-volume').value = String(Math.round(sfx.volume * 100));
+  $('sound-volume').disabled = sfx.muted;
+  $('sound-hum').checked = sfx.humOn;
+  $('sound-hum').disabled = sfx.muted;
+}
+$('sound-mute').onclick = () => { sfx.unlock(); sfx.setMuted(!sfx.muted); save.setSetting('muted', sfx.muted); renderSound(); sfx.play('click'); };
+$('sound-volume').oninput = () => { sfx.setVolume(Number($('sound-volume').value) / 100); };
+$('sound-volume').onchange = () => { save.setSetting('volume', sfx.volume); sfx.play('grab'); };
+$('sound-hum').onchange = () => { sfx.setHum($('sound-hum').checked); save.setSetting('hum', sfx.humOn); };
+const unlockSound = () => { if (sfx.unlock() || sfx.failed) { removeEventListener('pointerdown', unlockSound, true); removeEventListener('keydown', unlockSound, true); } };
+addEventListener('pointerdown', unlockSound, true);
+addEventListener('keydown', unlockSound, true);
+document.addEventListener('visibilitychange', () => (document.hidden ? sfx.suspend() : sfx.resume()));
+renderSound();
+
 // --- main loop ---
 let last = performance.now();
 function frame(now) {
@@ -423,6 +448,7 @@ function frame(now) {
   if (session.update(dt) > 0) dirty = true;
   if (dirty) { dirty = false; render(); }
   drawBoard(now, dt);
+  sfx.playAll(sfxCues.sync(session));
   requestAnimationFrame(frame);
 }
 

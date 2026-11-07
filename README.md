@@ -63,6 +63,15 @@ imported once and left in place. A damaged save is copied to
 is never overwritten; if storage is full or blocked the game keeps going and
 the map says progress isn't being saved.
 
+**Sound:** all sound is synthesized in the browser with WebAudio (no audio
+files): footsteps, turn chirps, a thud on a bump, grab/drop/deliver blips, a
+chime when a breakpoint pauses, a fanfare plus one chime per star on a win,
+a falling buzz on a failure, and a low ambient factory hum. The topbar has
+🔊 (mute), a volume slider and a **Hum** switch; all three are saved in the
+settings. Sound starts after the first click or key press (browser autoplay
+rules), pauses while the tab is hidden, and at Turbo/Instant only bumps and
+results are voiced. Without WebAudio the game simply stays silent.
+
 **Blocks:** the **Text / Blocks** switch above the editor shows the same
 program as blocks (choice remembered). Click a tile in the tray to add it after
 the selected block (or into an empty loop), or drag tiles and blocks into the
@@ -214,6 +223,11 @@ random floors (6 generators × 60), and the test-floor rules in `PlaySession`.
 `test/save.test.js` covers saving with a fake storage (reload, legacy import,
 corrupt / newer / full / blocked storage, reset) and the map (unlock rule,
 playing every solution in order keeps the next level open, totals, Continue).
+`test/audio.test.js` checks the sound module against a stub AudioContext
+(every cue builds valid nodes routed through the master gain, no context
+before unlock, mute/volume/hum, rate limit and voice cap, no WebAudio → silent)
+and that `SoundCues` follows a real `PlaySession` (steps, bump, breakpoint,
+win fanfare with one chime per star, silent reset).
 `test/code-mode.test.js` covers Text ⇄ Blocks: every solution switches to blocks
 unchanged and still wins, and can be built from its level's own tile tray. Par format:
 `par: { steps, size }` (optional, validated by `level.js`).
@@ -236,11 +250,13 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 - `src/ui/` — browser code: canvas renderer (art drawn in code), code editor
   (gutter + line band; pure logic in `editor-model.js`), block editor
   (`blocks-view.js` over the pure `src/lang/blocks.js`; mode logic in
-  `code-mode.js`), world map (`map-view.js`) and page wiring
+  `code-mode.js`), world map (`map-view.js`), synthesized sound (`audio.js`:
+  cue table, event → cue mapping, `Sound` engine with an injectable
+  AudioContext) and page wiring
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
-Day 9 of 30 (milestones through Day 11 done): language core with friendly
+Day 10 of 30 (milestones through Day 12 done): language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1
 with validation, per-level unlocked commands, reach/collect/deliver win rules
 and test floors; World 1 (8 levels) and World 2 (8 sensor levels, 3 floors
@@ -248,7 +264,8 @@ each) with par scores and stars that add up across runs; a world map / level
 select with unlocks and a versioned, migration-safe save; a level screen with
 a line-numbered text editor **and a block editor** (lossless text ⇄ blocks),
 Run/Pause/Step/Stop/Reset, speed, HUD, result banner and test-floor switcher;
-code-drawn pixel art with tweened animation; a step debugger with
-breakpoints, step over / step out, call-stack / repeat-block and function
-panels; lint warnings; a BFS solver; a level report script. 148 automated
-tests. Next: Day 12, synthesized sound (WebAudio SFX, ambient hum, mute/volume).
+code-drawn pixel art with tweened animation; synthesized sound effects and
+ambient hum with saved mute/volume; a step debugger with breakpoints, step
+over / step out, call-stack / repeat-block and function panels; lint
+warnings; a BFS solver; a level report script. 160 automated tests. Next:
+Day 13, registers (`set`, `add`, comparisons) for state machines.
