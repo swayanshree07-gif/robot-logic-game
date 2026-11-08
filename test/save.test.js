@@ -156,7 +156,8 @@ test('unlocking: up to two unsolved levels are open at once', () => {
   for (let i = 0; i < levels.length; i++) {
     assert.ok(isOpen(levels, st, i), `${levels[i].id} open`);
     const s = new PlaySession(levels[i], { speed: 'instant' });
-    s.setSource(levels[i].solution);
+    if (levels[i].solutions) s.setSources(levels[i].solutions);
+    else s.setSource(levels[i].solution);
     s.run();
     while (s.state === 'running') s.update(0);
     assert.equal(s.result.result, 'win', levels[i].id);

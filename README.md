@@ -303,6 +303,8 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
+
+- Day 19: World 5 "Swarm Floor" started: levels 5-1..5-4 (two-robot crews: plates, signals, hand-offs), tested in `test/world5.test.js`.
 Day 18 of 30 (plan rewritten on Day 16 for the owner's extended goals; Day 18 done): language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1
 with validation, per-level unlocked commands, reach/collect/deliver win rules

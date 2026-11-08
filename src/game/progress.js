@@ -12,7 +12,6 @@ export const OPEN_AHEAD = 2;
 /** Worlds in the plan that aren't built yet, shown as locked cards on the map
  *  (an entry whose id is already a built world is skipped). */
 export const UPCOMING_WORLDS = [
-  { id: 'w5', name: 'Swarm Floor', blurb: 'Several robots, one job: signals and cooperation.' },
 ];
 
 /** For each level in play order: is it open? `won(id)` → boolean. */

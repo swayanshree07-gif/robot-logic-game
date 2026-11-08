@@ -151,7 +151,7 @@ test('map: World 3 is a built world, and an upcoming entry with a built id is no
   const { WORLDS } = await import('../src/game/levels.js');
   const none = { won: () => false, stars: () => 0 };
   const m = mapModel(WORLDS, none, { upcoming: [{ id: 'w3', name: 'dup', blurb: '' }, { id: 'w9', name: 'Later', blurb: '' }] });
-  assert.deepEqual(m.map((w) => w.id), ['w1', 'w2', 'w3', 'w4', 'w9']);
+  assert.deepEqual(m.map((w) => w.id), ['w1', 'w2', 'w3', 'w4', 'w5', 'w9']);
   assert.equal(m[2].name, 'Assembly Line');
-  assert.equal(m[4].tag, '5');
+  assert.equal(m[5].tag, '6');
 });

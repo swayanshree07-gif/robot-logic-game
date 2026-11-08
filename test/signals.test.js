@@ -104,12 +104,12 @@ test('one robot alone: signals are a clear runtime error, not a crash', () => {
   assert.match(r.error.message, /crew/);
 });
 
-test('tools: signals need the signal block, the sensor needs to be listed; all built levels lock both', () => {
+test('tools: signals need the signal block, the sensor needs to be listed; Worlds 1-4 lock both', () => {
   const ast = parse('send a\nif signal\nwait a\nend');
   assert.throws(() => checkTools(ast, { blocks: ['if'] }), /command 'send' isn't unlocked/);
   assert.throws(() => checkTools(ast, { blocks: ['if', 'signal'], sensors: [] }), /sensor 'signal' isn't unlocked/);
   checkTools(ast, { blocks: ['if', 'signal'], sensors: ['signal'] });
-  for (const w of WORLDS) {
+  for (const w of WORLDS.filter((x) => x.id !== 'w5')) {
     for (const l of w.levels) {
       assert.ok(l.tools.blocks && !l.tools.blocks.includes('signal'), l.id);
       assert.ok(l.tools.sensors && !l.tools.sensors.includes('signal'), l.id);
