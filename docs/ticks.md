@@ -53,6 +53,16 @@ A robot whose program ends stands still; the run fails once all programs have en
 The battery (`maxSteps`) counts rounds. Loop detection covers the world plus all VMs.
 One-robot levels still use `Runner` and are unchanged.
 
+## Debugging crews (Day 18)
+The play screen runs a crew one round per Step. The editor shows one robot's
+program at a time (tabs); breakpoints and the call-stack panel follow that
+robot. Breakpoints are checked between rounds: the run pauses before a round
+if the selected robot's next line has a breakpoint. A line reached inside a
+round (for example right after a `wait` lets the robot through) runs without
+pausing, because rounds are never split. Step Over / Step Out step one round /
+run on. When a run ends with an error, the editor switches to the robot that
+caused it.
+
 ## Signals (Day 17)
 
 `send NAME` adds one pending NAME signal to a pool shared by the crew; it takes no

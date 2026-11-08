@@ -212,3 +212,10 @@ pre { font-size: 12px; }
 .map-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; }
 .map-note { margin: 0; color: var(--dim); font-size: .85rem; }
 button.quiet { margin-left: auto; background: transparent; color: var(--dim); border: 1px solid var(--line); font-weight: 500; }
+
+/* crew levels: one editor tab per robot */
+.crew-tabs { display: flex; gap: 4px; margin: 4px 0; flex-wrap: wrap; }
+.crew-tabs button { border: 1px solid #445; border-bottom: 3px solid var(--tint, #ffd84a); background: #1b1d2a; color: #ccd; padding: 3px 10px; border-radius: 4px 4px 0 0; cursor: pointer; font: inherit; }
+.crew-tabs button b { color: var(--tint, #ffd84a); }
+.crew-tabs button[aria-selected="true"] { background: #2c3048; color: #fff; }
+.crew-tabs .tab-state { opacity: 0.75; font-size: 0.85em; }

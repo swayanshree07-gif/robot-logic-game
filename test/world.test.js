@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { World, parseMap } from '../src/world/world.js';
 import { runLevel } from '../src/game/run.js';
 import { ALL_LEVELS as LEVELS } from '../src/game/levels.js';
+import { runSolution } from '../src/game/run.js';
 
 test('parseMap finds robot, items and validates shape', () => {
   const m = parseMap(['#v#', '.o.', 'GB#']);
@@ -54,7 +55,7 @@ test('every level has a working solution', () => {
   for (const level of LEVELS) {
     assert.ok(!ids.has(level.id), `duplicate id ${level.id}`);
     ids.add(level.id);
-    const r = runLevel(level.solution, level);
+    const r = runSolution(level);
     assert.equal(r.result, 'win', `${level.id}: ${r.result} ${r.error ? r.error.message : ''}`);
   }
 });

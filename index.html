@@ -63,6 +63,10 @@
           <h4>Memory</h4>
           <ul id="dbg-regs"></ul>
         </div>
+        <div class="dbg-col" id="dbg-crew-col" hidden>
+          <h4>Crew</h4>
+          <ul id="dbg-crew"></ul>
+        </div>
         <p id="dbg-break" class="brk"></p>
       </div>
       <pre id="status" class="status" role="status">Ready.</pre>
@@ -76,6 +80,7 @@
           <button id="mode-blocks" type="button" aria-pressed="false" title="Build the program from blocks">Blocks</button>
         </span>
       </div>
+      <div id="crew-tabs" class="crew-tabs" role="tablist" aria-label="Robot programs" hidden></div>
       <p id="tools" class="tools"></p>
       <div class="editor" id="editor-root">
         <div class="gutter" aria-hidden="true"></div>

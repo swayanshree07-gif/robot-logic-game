@@ -184,10 +184,13 @@ export function tweenMs(tickMs, reducedMotion = false) {
  * A new world object (reset / new run) snaps to its start position.
  */
 export class Animator {
-  constructor() { this.world = null; }
+  /** @param {number} [index] which robot to follow (crews: one Animator per robot) */
+  constructor(index = 0) { this.world = null; this.index = index; }
+
+  bot(world) { return (world.robots && world.robots[this.index]) || world.robot; }
 
   snap(world) {
-    const r = world.robot;
+    const r = this.bot(world);
     this.world = world;
     this.seen = world.log.length;
     this.from = { x: r.x, y: r.y };
@@ -205,8 +208,15 @@ export class Animator {
     const events = world.log.slice(this.seen);
     this.seen = world.log.length;
     const cur = this.position();
-    const r = world.robot;
-    const last = events[events.length - 1];
+    const r = this.bot(world);
+    let last = events[events.length - 1];
+    if (world.robots && world.robots.length > 1) {
+      // crews: this robot's own change this round (others may have acted)
+      const moved = r.x !== this.to.x || r.y !== this.to.y, turned = r.dir !== this.dir;
+      const crash = events.find((e) => e.type === 'crash' && e.robot === this.index);
+      if (!moved && !turned && !crash) return;
+      last = crash ? { type: 'bump', x: crash.x, y: crash.y } : { type: turned && !moved ? 'turn' : 'move' };
+    }
     this.from = cur;
     this.to = { x: r.x, y: r.y };
     this.prevDir = this.dir;

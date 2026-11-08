@@ -138,6 +138,22 @@ export const PROTOTYPES = [
     solution: 'move\ngrab\nmove\ndrop\nleft\nleft\nmove 2\nleft\nmove 2\ngrab\nleft\nmove\ndrop\nleft\nmove 2\nright\nmove 3',
   },
   {
+    id: 'proto-11',
+    name: 'Relay Test Bench',
+    brief: 'Dev rig for crews: Bolt holds the plate so Pip can pass the door, then both dock.',
+    win: 'reach',
+    robots: [{ name: 'Pip' }, { name: 'Bolt' }],
+    map: [
+      '#######',
+      '#>.D.G#',
+      '###_###',
+      '###^###',
+      '###G###',
+      '#######',
+    ],
+    solutions: ['wait go\nmove 3\nsend through\nmove', 'move\nsend go\nwait through\nright\nright\nmove 2'],
+  },
+  {
     id: 'proto-9',
     name: 'Shuttle Run',
     brief: 'Three parts, one gripper. Shuttle them to the bin one by one — the sensors tell you when to stop.',

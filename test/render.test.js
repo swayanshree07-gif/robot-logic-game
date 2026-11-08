@@ -21,7 +21,7 @@ const { draw } = await import('../src/ui/render.js');
 
 test('draw() renders every level, every facing, holding and bump, without throwing', () => {
   for (const lv of LEVELS) {
-    const w = new World(lv);
+    const w = new World(lv, { maxRobots: 4 });
     for (let dir = 0; dir < 4; dir++) {
       const ctx = stubCtx(640, 400);
       w.robot.holding = dir % 3; // 0, 1, 2 (badge)
@@ -37,6 +37,6 @@ test('draw() works on a finished run and with default pose', () => {
   const res = runLevel(lv.solution, lv);
   assert.equal(res.result, 'win');
   const ctx = stubCtx(320, 200);
-  draw(ctx, new World(lv));
+  draw(ctx, new World(lv, { maxRobots: 4 }));
   assert.ok(ctx.calls.fillRect > 0);
 });

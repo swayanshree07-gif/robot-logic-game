@@ -193,6 +193,9 @@ function drawPadGlow(ctx, X, Y, time) {
   }
 }
 
+/** Crew colours: robot 1 keeps Pip's look, the others get a tinted visor ring + number. */
+export const CREW_TINTS = ['#ffd84a', '#5ad1ff', '#ff7ad9', '#8cff6a'];
+
 function drawPip(ctx, pose, holding, time) {
   const X = Math.round(pose.x * T * 4) / 4, Y = Math.round(pose.y * T * 4) / 4;
   const top = Y - 1 - pose.hop;
@@ -231,9 +234,16 @@ export function draw(ctx, world, { bump = null, pose = null, time = 0 } = {}) {
   for (const p of world.plates || []) drawPlateLight(ctx, p.x * T, p.y * T, world.occupied(p.x, p.y));
   for (const d of world.doors || []) drawDoor(ctx, d.x * T, d.y * T, d.open);
   for (const it of world.items) sprite(ctx, PART, it.x * T, it.y * T);
+  const bots = world.robots && world.robots.length > 1 ? world.robots : [world.robot];
+  const poses = bots.map((b, i) => (Array.isArray(pose) ? pose[i] : i === 0 ? pose : null) || { x: b.x, y: b.y, dir: b.dir, hop: 0 });
+  bots.forEach((b, i) => {
+    drawPip(ctx, poses[i], b.holding, time);
+    if (bots.length > 1) { // tint stripe under the robot + its number
+      px(ctx, poses[i].x * T + 3, poses[i].y * T + 15, 10, 1, CREW_TINTS[i % CREW_TINTS.length]);
+    }
+  });
   const r = world.robot;
-  const p = pose || { x: r.x, y: r.y, dir: r.dir, hop: 0 };
-  drawPip(ctx, p, r.holding, time);
+  const p = poses[0];
   if (bump) {
     ctx.globalAlpha = 0.9;
     const X = bump.x * T, Y = bump.y * T;
@@ -244,7 +254,15 @@ export function draw(ctx, world, { bump = null, pose = null, time = 0 } = {}) {
   }
   ctx.restore();
 
-  if (r.holding > 1) { // hopper count badge, in screen pixels
+  if (bots.length > 1) { // robot numbers, in screen pixels
+    ctx.font = `bold ${Math.max(10, Math.round(L.cell * 0.3))}px monospace`;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    bots.forEach((b, i) => {
+      ctx.fillStyle = CREW_TINTS[i % CREW_TINTS.length];
+      ctx.fillText(String(i + 1), L.ox + poses[i].x * L.cell + 2, L.oy + poses[i].y * L.cell + 2);
+    });
+  }
+  if (bots.length === 1 && r.holding > 1) { // hopper count badge, in screen pixels
     ctx.fillStyle = PALETTE.e;
     ctx.font = `bold ${Math.max(10, Math.round(L.cell * 0.3))}px monospace`;
     ctx.textAlign = 'right'; ctx.textBaseline = 'top';

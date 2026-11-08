@@ -7,6 +7,7 @@ import {
 import { World } from '../src/world/world.js';
 import { runLevel, describeResult } from '../src/game/run.js';
 import { ALL_LEVELS as LEVELS } from '../src/game/levels.js';
+import { runSolution } from '../src/game/run.js';
 import { formatError } from '../src/lang/errors.js';
 
 const byId = (id) => LEVELS.find((l) => l.id === id);
@@ -16,10 +17,10 @@ const lvl = (over) => ({ ...base, ...over });
 test('every shipped level is valid format v1 and its solution wins', () => {
   for (const level of LEVELS) {
     assert.deepEqual(validateLevel(level), [], level.id);
-    const r = runLevel(level.solution, level);
+    const r = runSolution(level);
     assert.equal(r.result, 'win', `${level.id}: ${r.result} ${r.error ? r.error.message : r.unmet.join(';')}`);
     // The normalised copy behaves identically.
-    assert.equal(runLevel(level.solution, normalizeLevel(level)).ticks, r.ticks, level.id);
+    assert.equal(runSolution(normalizeLevel(level)).ticks, r.ticks, level.id);
   }
 });
 

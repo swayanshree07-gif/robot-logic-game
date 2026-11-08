@@ -47,7 +47,7 @@ test('layout scales by whole art pixels and centres the board', () => {
   const small = layout({ width: 40, height: 40 }, 640, 400); // too tight to snap
   assert.equal(small.cell, 10);
   for (const lv of LEVELS) {
-    const w = new World(lv);
+    const w = new World(lv, { maxRobots: 4 });
     const l = layout(w, 640, 400);
     assert.ok(l.cell * w.width <= 640 && l.cell * w.height <= 400, lv.id);
     assert.ok(Number.isInteger(l.scale), `${lv.id} scale ${l.scale}`);

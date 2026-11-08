@@ -6,7 +6,7 @@ import { enterBlocks, blockMark, missingTiles, blockedMessage } from '../src/ui/
 import { toText, insertBlock, palette, render } from '../src/lang/blocks.js';
 import { ALL_LEVELS, LEVELS } from '../src/game/levels.js';
 import { PlaySession } from '../src/game/session.js';
-import { normalizeLevel } from '../src/world/level.js';
+import { normalizeLevel, levelSolutions, robotTools } from '../src/world/level.js';
 
 const playToEnd = (level, src) => {
   const s = new PlaySession(level, { speed: 'instant' });
@@ -18,18 +18,27 @@ const playToEnd = (level, src) => {
 
 test('every solution switches to blocks unchanged and still wins when run from the block text', () => {
   for (const l of ALL_LEVELS) {
-    const r = enterBlocks(l.solution);
-    assert.ok(r.ok, l.id);
-    assert.equal(r.text, l.solution, `${l.id}: solutions are already tidy`);
-    const s = playToEnd(l, toText(r.blocks));
+    const texts = levelSolutions(l).map((src) => {
+      const r = enterBlocks(src);
+      assert.ok(r.ok, l.id);
+      assert.equal(r.text, src, `${l.id}: solutions are already tidy`);
+      return toText(r.blocks);
+    });
+    const s = new PlaySession(l, { speed: 'instant' });
+    s.setSources(texts);
+    s.run();
+    while (s.state === 'running') s.update(0);
     assert.equal(s.result.result, 'win', l.id);
   }
 });
 
 test('every played solution can be built from the level\'s own tile tray', () => {
   for (const l of LEVELS) {
-    const { blocks } = enterBlocks(l.solution);
-    assert.deepEqual(missingTiles(blocks, normalizeLevel(l).tools), [], l.id);
+    const n = normalizeLevel(l);
+    levelSolutions(l).forEach((src, i) => {
+      const { blocks } = enterBlocks(src);
+      assert.deepEqual(missingTiles(blocks, robotTools(n, i)), [], l.id);
+    });
   }
 });
 

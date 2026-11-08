@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PlaySession, SPEEDS, MAX_TICKS_PER_UPDATE, resultBanner } from '../src/game/session.js';
 import { ALL_LEVELS as LEVELS } from '../src/game/levels.js';
+import { levelSolutions } from '../src/world/level.js';
 
 const hall = { id: 't', name: 'T', map: ['#######', '#>...G#', '#######'], win: 'reach' };
 
@@ -116,7 +117,7 @@ test('speeds are ordered slowest to fastest and every level runs in a session', 
   assert.throws(() => new PlaySession(hall, { speed: 'warp' }));
   for (const lvl of LEVELS) {
     const s = new PlaySession(lvl, { speed: 'instant' });
-    s.setSource(lvl.solution);
+    s.setSources(levelSolutions(lvl));
     s.run();
     while (s.state === 'running') s.update(16);
     assert.equal(s.result.result, 'win', lvl.id);

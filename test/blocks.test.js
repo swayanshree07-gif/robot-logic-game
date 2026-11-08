@@ -7,6 +7,8 @@ import {
 } from '../src/lang/blocks.js';
 import { parse } from '../src/lang/parser.js';
 import { ALL_LEVELS } from '../src/game/levels.js';
+import { levelSolutions } from '../src/world/level.js';
+import { runSolution } from '../src/game/run.js';
 import { runLevel } from '../src/game/run.js';
 
 /** AST without positions, to compare meaning. */
@@ -14,16 +16,18 @@ const shape = (src) => JSON.parse(JSON.stringify(parse(src), (k, v) => (k === 'l
 
 test('every level solution survives text -> blocks -> text unchanged', () => {
   for (const l of ALL_LEVELS) {
-    assert.equal(toText(toBlocks(l.solution)), l.solution, l.id);
-    // and blocks -> text -> blocks is stable too
-    const b = toBlocks(l.solution);
-    assert.deepEqual(toBlocks(toText(b)), b, l.id);
+    for (const src of levelSolutions(l)) {
+      assert.equal(toText(toBlocks(src)), src, l.id);
+      // and blocks -> text -> blocks is stable too
+      const b = toBlocks(src);
+      assert.deepEqual(toBlocks(toText(b)), b, l.id);
+    }
   }
 });
 
 test('every level still wins with its solution rebuilt from blocks', () => {
   for (const l of ALL_LEVELS) {
-    assert.equal(runLevel(toText(toBlocks(l.solution)), l).result, 'win', l.id);
+    assert.equal(runSolution(l, levelSolutions(l).map((s) => toText(toBlocks(s)))).result, 'win', l.id);
   }
 });
 

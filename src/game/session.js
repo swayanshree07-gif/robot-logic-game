@@ -24,8 +24,15 @@
 // every other floor; the result is only a win if all of them win, otherwise a
 // 'fail' naming the floor (result.floorFail, 0-based). Stars are always scored
 // on floor 1 (the main map), so par means the same whichever floor is watched.
+//
+// Crews (maps with several robots): the session keeps one program per robot
+// (`sources`); `source` / setSource act on the robot whose editor tab is open
+// (`selectRobot`). Runs use the CrewRunner, one tick = one round. Breakpoints
+// and the call-stack panel follow the selected robot; Step Over / Step Out
+// step one round (decision: crews are debugged round by round).
 import { Runner, runLevel, describeResult, DEFAULT_MAX_TICKS } from './run.js';
-import { floorCount, floorLevel } from '../world/level.js';
+import { CrewRunner, runCrew } from './crew.js';
+import { floorCount, floorLevel, levelCrew, robotName, MAX_CREW } from '../world/level.js';
 import { World } from '../world/world.js';
 import { scoreRun, parLine } from './score.js';
 import { analyze } from '../lang/lint.js';
@@ -48,7 +55,9 @@ export class PlaySession {
    */
   constructor(level, { speed = 'normal' } = {}) {
     this.level = level;
-    this.source = '';
+    this.crew = levelCrew(level);
+    this.sources = Array(this.crew).fill('');
+    this.robot = 0; // selected robot (editor tab)
     this.breakpoints = new Set();
     this.floor = 0;
     this.setSpeed(speed);
@@ -75,12 +84,30 @@ export class PlaySession {
     this.reset();
   }
 
+  /** Program of the selected robot. */
+  get source() { return this.sources[this.robot]; }
+
   /** Changing the program throws away any run in progress. */
-  setSource(text) {
-    if (text === this.source) return;
-    this.source = text;
+  setSource(text, robot = this.robot) {
+    if (text === this.sources[robot]) return;
+    this.sources[robot] = text;
     if (this.state !== 'edit') this.reset();
   }
+
+  /** Crews: set every robot's program at once. */
+  setSources(list) {
+    if (list.length !== this.crew) throw new RangeError(`expected ${this.crew} programs`);
+    list.forEach((t, i) => this.setSource(t, i));
+  }
+
+  /** Crews: open robot `i`'s editor tab (does not touch the run). */
+  selectRobot(i) {
+    if (!Number.isInteger(i) || i < 0 || i >= this.crew) throw new RangeError(`no robot ${i + 1}`);
+    this.robot = i;
+  }
+
+  /** Headless run of the current program(s) on `level`. */
+  runHeadless(level) { return this.crew > 1 ? runCrew(this.sources, level) : runLevel(this.source, level); }
 
   /** Parse + lint of the current source, cached until it changes: { error, warnings, defs }. */
   get analysis() {
@@ -93,7 +120,7 @@ export class PlaySession {
   reset() {
     this.state = 'edit';
     this.runner = null;
-    this.world = new World(this.played);
+    this.world = new World(this.played, { maxRobots: MAX_CREW });
     this.result = null; // { result, ticks, size, unmet, error, message }
     this.line = 0; // line of the last executed action (0 = none)
     this.bump = null;
@@ -113,7 +140,7 @@ export class PlaySession {
   /** Start a fresh run; returns false if the program didn't compile (state becomes done). */
   start() {
     this.reset();
-    this.runner = new Runner(this.source, this.played);
+    this.runner = this.crew > 1 ? new CrewAdapter(this.sources, this.played, this) : new Runner(this.source, this.played);
     this.world = this.runner.world;
     if (this.runner.done) { this.end(); return false; }
     return true;
@@ -145,6 +172,7 @@ export class PlaySession {
   stepOver() {
     if (this.state === 'edit' || this.state === 'done') { if (!this.start()) return; }
     this.state = 'paused';
+    if (this.crew > 1) { this.tick(true); return; }
     const d = this.runner.vm.depth;
     if (!this.tick(true)) return;
     if (this.runner.vm.depth > d) this.runUntil((vm) => vm.depth <= d);
@@ -155,7 +183,7 @@ export class PlaySession {
    * In the main program there is nothing to step out of, so this is Run.
    */
   stepOut() {
-    if (this.state === 'edit' || this.state === 'done' || this.runner.vm.depth === 0) { this.run(); return; }
+    if (this.state === 'edit' || this.state === 'done' || this.crew > 1 || this.runner.vm.depth === 0) { this.run(); return; }
     this.state = 'paused';
     const d = this.runner.vm.depth;
     this.runUntil((vm) => vm.depth < d, true);
@@ -202,13 +230,15 @@ export class PlaySession {
     const r = this.runner;
     if (ev && ev.error && ev.error.line) this.line = ev.error.line;
     const last = this.world.log[this.world.log.length - 1];
-    this.bump = r.error && last && last.type === 'bump' ? last : null;
+    this.bump = r.error && last && (last.type === 'bump' || last.type === 'crash') ? last : null;
+    if (r.error && r.error.robot >= 0 && this.crew > 1) this.robot = r.error.robot;
     this.state = 'done';
     const summary = { result: r.result, ticks: r.ticks, size: r.size, unmet: this.world.unmetGoals(), error: r.error };
     summary.message = describeResult(summary);
+    if (this.crew > 1 && r.error && r.error.robot >= 0) summary.robot = r.error.robot;
     if (summary.result === 'win' && this.floors > 1) this.checkFloors(summary);
     if (summary.result === 'win') {
-      const main = this.floor === 0 ? summary : runLevel(this.source, this.level);
+      const main = this.floor === 0 ? summary : this.runHeadless(this.level);
       summary.score = scoreRun(main, this.level.par);
     } else summary.score = scoreRun(summary, this.level.par);
     this.result = summary;
@@ -218,7 +248,7 @@ export class PlaySession {
   checkFloors(summary) {
     for (let i = 0; i < this.floors; i++) {
       if (i === this.floor) continue;
-      const r = runLevel(this.source, floorLevel(this.level, i));
+      const r = this.runHeadless(floorLevel(this.level, i));
       if (r.result === 'win') continue;
       summary.result = 'fail';
       summary.floorFail = i;
@@ -280,7 +310,58 @@ export class PlaySession {
       result: this.result,
       floor: this.floor,
       floors: this.floors,
+      // crews: one entry per robot { name, line, status, blocked } and pending signals
+      robot: this.robot,
+      crew: this.crew > 1 ? this.crewView() : null,
+      signals: this.runner && this.crew > 1 ? this.runner.crew.signalCounts : {},
     };
+  }
+
+  crewView() {
+    const c = this.runner && this.runner.crew;
+    return this.sources.map((_, i) => {
+      const vm = c && c.vms[i];
+      return {
+        name: robotName(this.level, i),
+        line: c ? this.runner.lines[i] : 0,
+        status: !c ? 'edit' : vm ? vm.status : 'error',
+        blocked: c ? c.blocked[i] || null : null,
+      };
+    });
+  }
+}
+
+/**
+ * Makes a CrewRunner look like a Runner to the session: tick() plays one
+ * round and reports the selected robot's line; `vm` is the selected robot's
+ * VM (debugger panels). Breakpoints are checked between rounds: if the
+ * selected robot's next line is a breakpoint, the run pauses before the round.
+ * (A line reached inside a round, e.g. right after a `wait` lets the robot
+ * through, runs without pausing; rounds are never split.)
+ */
+class CrewAdapter {
+  constructor(sources, level, session) {
+    this.crew = new CrewRunner(sources, level);
+    this.session = session;
+    this.lines = sources.map(() => 0);
+  }
+  get world() { return this.crew.world; }
+  get done() { return this.crew.done; }
+  get result() { return this.crew.result; }
+  get error() { return this.crew.error; }
+  get ticks() { return this.crew.ticks; }
+  get size() { return this.crew.size; }
+  get vm() { return this.crew.vms[this.session.robot] || null; }
+  tick({ breakpoints = null, resume = false } = {}) {
+    const vm = this.vm;
+    if (breakpoints && !resume && vm && vm.status === 'running') {
+      const next = vm.line;
+      if (next && breakpoints.has(next)) return { type: 'break', line: next, reason: 'breakpoint' };
+    }
+    const ev = this.crew.tick();
+    if (ev.type === 'end') return ev;
+    ev.events.forEach((e, i) => { if (e && e.line) this.lines[i] = e.line; });
+    return { type: 'round', line: this.lines[this.session.robot] };
   }
 }
 
@@ -288,7 +369,8 @@ export class PlaySession {
 function floorReason(r) {
   if (r.result === 'fail') return `the program ends with the job unfinished (${r.unmet.join('; ')}).`;
   if (r.result === 'timeout') return 'the battery runs flat.';
-  if (r.result === 'loop') return 'Pip gets stuck in a loop.';
+  if (r.result === 'loop') return 'it gets stuck in a loop.';
+  if (r.result === 'deadlock') return 'the crew deadlocks waiting for signals.';
   return `${r.error ? r.error.message.replace(/\.$/, '') : r.result}.`;
 }
 
@@ -308,6 +390,7 @@ export function resultBanner(result, { hasNext = false } = {}) {
       : { kind: 'fail', title: 'Not quite', text: result.message, next: false };
     case 'timeout': return { kind: 'fail', title: 'Battery flat', text: `${result.error.detail}. ${result.error.hint ? `Hint: ${result.error.hint}.` : ''}`.trim(), next: false };
     case 'loop': return { kind: 'fail', title: 'Stuck in a loop', text: result.error.hint || result.error.message, next: false };
+    case 'deadlock': return { kind: 'fail', title: 'Deadlock', text: `${result.error.hint}.`, next: false };
     case 'stopped': return null;
     default: return { kind: 'error', title: result.error && result.error.kind === 'runtime' ? 'Pip stopped' : 'Program error', text: result.error ? result.error.message : 'error', next: false };
   }

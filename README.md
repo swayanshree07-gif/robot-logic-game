@@ -197,6 +197,12 @@ fills defaults and round-trips JSON):
   par: { steps: 9, size: 5 },  // optional
   floors: [[...map rows...]] } // optional extra test floors (up to 5), same rules
 ```
+**Crew levels** have 2–4 robot starts on the map (numbered in reading order)
+and use `solutions: ['…', '…']` (one program per robot) instead of
+`solution`; optional `robots: [{ name: 'Bolt', tools: {...} }, …]` names each
+robot and can give it its own tool list. Every test floor must have the same
+number of robots. Dev fixture: `?id=proto-11` (add `&solve=1&steps=4` to watch
+a run in progress).
 Map legend: `#` wall, `.` floor, `G` goal pad, `B` bin, `o` part, `r y b`
 coloured floor, `> v < ^` Pip's start and facing, `N E S W` conveyor belts,
 `_` pressure plate, `D` door (open while any plate holds Pip or a part). Belts
@@ -297,7 +303,7 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
-Day 17 of 30 (plan rewritten on Day 16 for the owner's extended goals; Day 17 done): language core with friendly
+Day 18 of 30 (plan rewritten on Day 16 for the owner's extended goals; Day 18 done): language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1
 with validation, per-level unlocked commands, reach/collect/deliver win rules
 and test floors; World 1 (8 levels), World 2 (8 sensor levels) World 3
@@ -314,6 +320,9 @@ path-planning module (BFS distance field + A*) behind the new `scan` sensor;
 a multi-robot **crew runner** (`src/game/crew.js`: lock-step rounds, crashes,
 shared belts/plates/doors; see `docs/ticks.md`) with **signals**
 (`send`/`wait NAME`, `signal` sensor, deadlock detection, crew lint, signal
-blocks), not yet in the UI. 233 automated tests. Next: Day 18, crew levels in
-the level format and the multi-robot UI. Still planned: World 5 crew levels, medals scoring,
+blocks); crew levels in the level format (`solutions`, per-robot names and
+tools) and in the UI: every robot drawn with its number and colour, one
+editor tab per robot, a crew debugger panel (each robot's line, who waits for
+which signal, pending signals) and a Deadlock banner. 243 automated tests.
+Next: Day 19, World 5 crew levels. Still planned: medals scoring,
 level editor with share codes, and an automated solver check of every level.

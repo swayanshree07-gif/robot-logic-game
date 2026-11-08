@@ -2,9 +2,9 @@
 // (src/game/session.js); this file wires it to the DOM and the canvas.
 import { LEVELS, WORLDS, ALL_LEVELS, levelPlace } from '../game/levels.js';
 import { PlaySession, SPEEDS, resultBanner } from '../game/session.js';
-import { describeGoal, normalizeLevel } from '../world/level.js';
+import { describeGoal, normalizeLevel, robotTools, robotName } from '../world/level.js';
 import { formatError } from '../lang/errors.js';
-import { draw } from './render.js';
+import { draw, CREW_TINTS } from './render.js';
 import { Animator, tweenMs } from './art.js';
 import { Sound, SoundCues } from './audio.js';
 import { CodeEditor } from './editor.js';
@@ -25,16 +25,19 @@ let index = 0;
 let session = null;
 let shownResult = null; // result object the banner/status currently reflect
 let dirty = true;
-const anim = new Animator();
+let anims = [new Animator()]; // one per robot
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
 let mode = 'text'; // 'text' | 'blocks' (remembered in localStorage)
 let notice = ''; // one-off message for the status line while editing (cleared on the next edit)
 
+/** Drafts: robot 1 uses the level id (as before crews), robot N>1 `<id>~rN`. */
+const draftKey = (i) => (i ? `${session.level.id}~r${i + 1}` : session.level.id);
+
 /** The program changed (from either editor): save the draft and hand it to the session. */
 function applySource(text) {
   notice = '';
-  save.setDraft(session.level.id, text);
+  save.setDraft(draftKey(session.robot), text);
   session.setSource(text);
   dirty = true;
 }
@@ -64,7 +67,7 @@ function setMode(next, { remember = true } = {}) {
     const r = enterBlocks(editor.value);
     if (r.ok) {
       if (r.text !== editor.value) { editor.value = r.text; applySource(r.text); } // tidy layout; lines unchanged
-      blockEditor.set(r.blocks, normalizeLevel(session.level).tools);
+      blockEditor.set(r.blocks, robotTools(normalizeLevel(session.level), session.robot));
       blockEditor.setBreakpoints(session.breakpoints);
     } else {
       next = 'text';
@@ -102,19 +105,52 @@ function loadLevel(i, level = LEVELS[i]) {
   $('level-name').textContent = level.name;
   setRichText($('brief'), level.brief);
   $('goal').textContent = `Goal: ${describeGoal(level)}`;
-  const t = normalizeLevel(level).tools;
-  const parts = [`commands: ${t.actions.join(' ')}`];
-  if (t.blocks.length) parts.push(`blocks: ${t.blocks.join(' ')}`);
-  if (t.sensors.length) parts.push(`sensors: ${t.sensors.join(' ')}`);
-  $('tools').textContent = `Unlocked — ${parts.join(' · ')}`;
+  anims = Array.from({ length: session.crew }, (_, k) => new Animator(k));
+  buildCrewTabs();
+  showTools();
   showPar(level);
   buildFloors();
   $('level-select').value = String(i);
   notice = '';
   session.setBreakpoints(save.breakpoints(level.id));
   editor.setBreakpoints(session.breakpoints);
-  setProgram(save.draft(level.id) ?? '');
+  for (let k = session.crew - 1; k >= 0; k--) { session.selectRobot(k); setProgram(save.draft(draftKey(k)) ?? ''); }
   shownResult = null;
+  dirty = true;
+}
+
+/** "Unlocked — ..." line for the selected robot. */
+function showTools() {
+  const t = robotTools(normalizeLevel(session.level), session.robot);
+  const parts = [`commands: ${t.actions.join(' ')}`];
+  if (t.blocks.length) parts.push(`blocks: ${t.blocks.join(' ')}`);
+  if (t.sensors.length) parts.push(`sensors: ${t.sensors.join(' ')}`);
+  const who = session.crew > 1 ? `${robotName(session.level, session.robot)}: ` : '';
+  $('tools').textContent = `${who}Unlocked — ${parts.join(' · ')}`;
+}
+
+/** Crew levels: one editor tab per robot (robot colour + name). */
+function buildCrewTabs() {
+  const box = $('crew-tabs');
+  box.hidden = session.crew < 2;
+  box.replaceChildren(...Array.from({ length: session.crew > 1 ? session.crew : 0 }, (_, k) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'tab');
+    b.style.setProperty('--tint', CREW_TINTS[k % CREW_TINTS.length]);
+    b.innerHTML = `<b>${k + 1}</b> ${esc(robotName(session.level, k))} <span class="tab-state"></span>`;
+    b.onclick = () => selectRobot(k);
+    return b;
+  }));
+}
+
+/** Switch the editor to robot `k`'s program (the run keeps going). */
+function selectRobot(k) {
+  if (k === session.robot) return;
+  session.selectRobot(k);
+  editor.value = session.source;
+  if (mode === 'blocks') setMode('blocks', { remember: false });
+  showTools();
   dirty = true;
 }
 
@@ -192,11 +228,11 @@ function setStatus(text, kind = '') {
 
 /** Draw the board with Pip's tweened pose; called every frame. */
 function drawBoard(now, dt) {
-  anim.sync(session.world, tweenMs(session.speed.ms, reducedMotion.matches));
-  anim.update(dt);
+  const ms = tweenMs(session.speed.ms, reducedMotion.matches);
+  for (const a of anims) { a.sync(session.world, ms); a.update(dt); }
   draw(ctx, session.world, {
-    bump: anim.busy ? null : session.bump,
-    pose: anim.pose(),
+    bump: anims.some((a) => a.busy) ? null : session.bump,
+    pose: anims.map((a) => a.pose()),
     time: reducedMotion.matches ? 0 : now,
   });
 }
@@ -224,6 +260,7 @@ function render() {
   $('step-over').disabled = !v.canStep;
   $('step-out').disabled = !v.canStepOut;
   renderDebugger(v);
+  renderCrew(v);
   const size = session.runner ? session.runner.size : 0;
   $('size').textContent = size ? `size ${size}` : '';
 
@@ -268,6 +305,22 @@ function renderDebugger(v) {
   $('dbg-break').textContent = v.atBreak ? `● paused at breakpoint, line ${v.atBreak}` : '';
 }
 
+/** Crew tabs + debugger crew list: each robot's line, state and the pending signals. */
+function renderCrew(v) {
+  $('dbg-crew-col').hidden = !v.crew;
+  if (!v.crew) return;
+  [...$('crew-tabs').children].forEach((b, k) => {
+    const c = v.crew[k];
+    b.setAttribute('aria-selected', String(k === v.robot));
+    b.querySelector('.tab-state').textContent = c.blocked ? `⏸ ${c.blocked}` : c.line ? `L${c.line}` : '';
+  });
+  const sig = Object.entries(v.signals);
+  $('dbg-crew').replaceChildren(
+    ...v.crew.map((c, k) => li(`<b>${k + 1} ${esc(c.name)}</b> <span>${c.blocked ? `waiting for '${esc(c.blocked)}'`
+      : c.status === 'halted' ? 'finished' : c.line ? `line ${c.line}` : 'ready'}</span>`, k === v.robot ? 'top' : '')),
+    li(sig.length ? `signals: ${sig.map(([n, c]) => `<b>${esc(n)}</b>×${c}`).join(' ')}` : 'no signals pending'));
+}
+
 /** Function panel: every def with its line, calls so far, and whether it is running. */
 function renderFunctions(v) {
   $('fn-panel').hidden = !v.functions.length;
@@ -292,6 +345,11 @@ function showResult(result) {
   const b = resultBanner(result, { hasNext: index < LEVELS.length - 1 });
   banner.hidden = !b;
   if (!result) return;
+  if (session.crew > 1 && editor.value !== session.source) { // the session jumped to the robot that failed
+    editor.value = session.source;
+    if (mode === 'blocks') setMode('blocks', { remember: false });
+    showTools();
+  }
   if (result.result === 'stopped') { setStatus('Stopped. Reset to try again.'); editor.setActive(session.line); return; }
   banner.className = `banner ${b.kind}`;
   $('banner-title').textContent = b.title;
@@ -477,9 +535,14 @@ if (params.has('bp')) { // &bp=2,4 sets breakpoints (not saved)
   blockEditor.setBreakpoints(session.breakpoints);
 }
 if (params.get('solve') === '1') {
-  setProgram(session.level.solution);
-  session.setSpeed('instant');
-  session.run();
+  const sols = session.level.solutions || [session.level.solution];
+  for (let k = sols.length - 1; k >= 0; k--) { session.selectRobot(k); setProgram(sols[k]); }
+  if (params.has('steps')) { // &steps=N: step N times instead (dev screenshots of a run in progress)
+    for (let n = Math.min(500, Number(params.get('steps')) || 0); n > 0 && session.state !== 'done'; n--) session.step();
+  } else {
+    session.setSpeed('instant');
+    session.run();
+  }
 } else if (params.get('run') === '1') session.step();
 else if (params.get('run') === 'all') { session.setSpeed('instant'); session.run(); }
 // finish instant runs before the first paint so screenshots never race a frame

@@ -13,7 +13,8 @@ import { checkTools } from '../lang/restrict.js';
 import { VM, DEFAULT_MAX_TICKS } from '../lang/vm.js';
 import { CogError } from '../lang/errors.js';
 import { World } from '../world/world.js';
-import { floorCount, floorLevel } from '../world/level.js';
+import { floorCount, floorLevel, levelCrew, levelSolutions } from '../world/level.js';
+import { runCrew } from './crew.js';
 
 export { DEFAULT_MAX_TICKS };
 
@@ -134,4 +135,12 @@ export function runFloors(source, level, { skip = [], ...opt } = {}) {
     if (failed < 0 && r.result !== 'win') failed = i;
   }
   return { result: failed < 0 ? 'win' : floors[failed].result, floors, failed };
+}
+
+/**
+ * Run a level's known solution (one program, or one per robot for crews) with
+ * the right runner. `programs` overrides the solution texts.
+ */
+export function runSolution(level, programs = levelSolutions(level), opt = {}) {
+  return levelCrew(level) > 1 ? runCrew(programs, level, opt) : runLevel(programs[0], level, opt);
 }

@@ -26,8 +26,9 @@ import { checkTools } from '../lang/restrict.js';
 import { VM, DEFAULT_MAX_TICKS } from '../lang/vm.js';
 import { CogError } from '../lang/errors.js';
 import { World, parseMap } from '../world/world.js';
+import { MAX_CREW, robotTools } from '../world/level.js';
 
-export const MAX_CREW = 4;
+export { MAX_CREW };
 
 /** Number of robot starts on a map (crew size). */
 export const crewSize = (map) => parseMap(map, { maxRobots: MAX_CREW }).robots.length;
@@ -59,7 +60,7 @@ export class CrewRunner {
     for (let i = 0; i < n; i++) {
       try {
         const ast = parse(sources[i]);
-        checkTools(ast, level.tools);
+        checkTools(ast, robotTools(level, i));
         this.sizes.push(programSize(ast));
         const host = {
           act: (name) => this.world.select(i).act(name),
@@ -94,10 +95,9 @@ export class CrewRunner {
   /** Pending signals as a sorted plain object, e.g. { ready: 1 } (for the debugger). */
   get signalCounts() { return Object.fromEntries([...this.signals].sort(([a], [b]) => (a < b ? -1 : 1))); }
 
-  key() {
-    const sig = [...this.signals].sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => `${k}=${v}`).join(',');
-    return `${this.world.stateKey()}#${this.vms.map((v) => v.stateKey()).join('#')}#${sig}`;
-  }
+  sigKey() { return [...this.signals].sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => `${k}=${v}`).join(','); }
+
+  key() { return `${this.world.stateKey()}#${this.vms.map((v) => v.stateKey()).join('#')}#${this.sigKey()}`; }
 
   finish(result, error = null, robot = -1) {
     this.result = result;
@@ -133,7 +133,7 @@ export class CrewRunner {
       return this.finish('timeout', e);
     }
     const events = [];
-    const before = this.world.stateKey();
+    const before = `${this.world.stateKey()}#${this.sigKey()}`; // a send this round is progress too
     this.blocked = this.vms.map(() => null);
     for (let i = 0; i < this.vms.length; i++) {
       const vm = this.vms[i];
@@ -150,7 +150,7 @@ export class CrewRunner {
     if (this.world.isWon()) return this.finish('win');
     if (this.vms.every((v) => v.status !== 'running')) return this.finish('fail');
     const running = this.vms.map((v, i) => i).filter((i) => this.vms[i].status === 'running');
-    if (running.every((i) => this.blocked[i] !== null) && this.world.stateKey() === before) return this.deadlock(running);
+    if (running.every((i) => this.blocked[i] !== null) && `${this.world.stateKey()}#${this.sigKey()}` === before) return this.deadlock(running);
     if (this.detectCycles) {
       const k = this.key();
       const first = this.seen.get(k);
