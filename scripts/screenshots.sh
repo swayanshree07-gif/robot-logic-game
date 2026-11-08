@@ -47,6 +47,7 @@ shot floor3  "level=16&floor=3&solve=1"
 # world map (last, so the wins from the solve=1 shots above show as stars in the profile's save)
 shot map     "map=1"
 shot w3memory "id=w3-8&solve=1&floor=1"
+shot w4scan   "id=w4-8&solve=1&floor=3"
 shot rig      "id=proto-10"
 shot rigopen  "id=proto-10&code=move%0Agrab%0Amove%0Adrop&run=all"
 shot rigwin   "id=proto-10&solve=1"

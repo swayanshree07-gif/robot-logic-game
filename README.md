@@ -224,6 +224,15 @@ Levels are grouped into worlds (`src/game/levels.js` → `WORLDS`, `LEVELS`).
   as a distance), 3-8 Last Call (fetch until empty, a flag register ends the
   loop). Counting levels lock the `bin` sensor and the state-machine levels
   lock wall sensors, so remembering is the only way.
+- **World 4 "Maze Wing"** (`src/game/worlds/w4.js`, 8 levels, 3 test floors
+  each): 4-1 Right-Hand Rule (wall following), 4-2 Lost Bolts (a full
+  wall-following sweep), 4-3 Left-Hand Wing (mirrored, right sensor locked),
+  4-4 From the Stacks (wall following in a `def`, fetch and return), 4-5 Hold
+  the Heading (Pledge algorithm: a register counts turns; 20-step battery),
+  4-6 Planner Online (`scan` unlocks; mazes with loops), 4-7 Shortest Delivery
+  (scan + gripper), 4-8 Night Inventory (deliver all, then dock, 120-step
+  battery). `test/world4.test.js` checks that the solver agrees on every floor
+  and that the weaker strategy each level replaces really fails.
 - The Day 1–4 prototypes are no longer in the level list; they stay in
   `PROTOTYPES` / `ALL_LEVELS` as test fixtures.
 
@@ -281,11 +290,11 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
-Day 14 of 30 (milestones through Day 16 done): language core with friendly
+Day 15 of 30 (milestones through Day 17 done): language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1
 with validation, per-level unlocked commands, reach/collect/deliver win rules
-and test floors; World 1 (8 levels), World 2 (8 sensor levels) and World 3
-(8 function/memory levels), 3 test floors on most levels, with par scores and
+and test floors; World 1 (8 levels), World 2 (8 sensor levels) World 3
+(8 function/memory levels) and World 4 (8 maze / path-planning levels), 3 test floors on most levels, with par scores and
 stars; a world map / level select with unlocks and a versioned save; a level
 screen with a text editor **and a block editor** (lossless text ⇄ blocks),
 Run/Pause/Step/Stop/Reset, speed, HUD, result banner and test-floor switcher;
@@ -295,4 +304,4 @@ function and memory panels; lint warnings; memory registers; a BFS solver; a
 level report script; factory mechanics (conveyor belts, pressure plates,
 doors, documented tick order) with a dev test rig (`?id=proto-10`); a
 path-planning module (BFS distance field + A*) behind the new `scan` sensor.
-201 automated tests. Next: Day 17, World 4 "Maze Wing" levels.
+208 automated tests. Next: Day 18, multiple robots (lock-step scheduler).

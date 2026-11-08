@@ -111,8 +111,10 @@ test('scan targets: bin when holding, else parts, else the pad', () => {
   assert.deepEqual(routeToTarget(world(['#####', '#>.G#', '#####'])).actions, ['move', 'move']);
 });
 
-test('scan stays locked in every built level (it belongs to the Maze Wing)', () => {
-  for (const level of LEVELS) assert.ok(!level.tools?.sensors || !level.tools.sensors.includes('scan'), level.id);
+test('scan stays locked until the Maze Wing (first unlocked at w4-6)', () => {
+  const first = LEVELS.findIndex((l) => l.tools?.sensors?.includes('scan'));
+  assert.equal(LEVELS[first].id, 'w4-6');
+  for (const level of LEVELS.slice(0, first)) assert.ok(!level.tools.sensors.includes('scan'), level.id);
   for (const level of LEVELS) assert.ok(level.tools?.sensors, `${level.id} lists its sensors`);
 });
 
