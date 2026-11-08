@@ -33,6 +33,8 @@ export const CUES = {
   star: [{ wave: 'sine', f: 1568, f2: 2093, dur: 0.12, gain: 0.1 }],
   fail: [{ wave: 'sawtooth', f: 220, f2: 150, dur: 0.25, gain: 0.08 }, { wave: 'sawtooth', f: 165, f2: 110, at: 0.2, dur: 0.35, gain: 0.08 }],
   error: [{ wave: 'square', f: 110, dur: 0.12, gain: 0.12 }, { wave: 'square', f: 110, at: 0.16, dur: 0.12, gain: 0.12 }],
+  belt: [{ wave: 'noise', filter: 900, dur: 0.1, gain: 0.07 }, { wave: 'sawtooth', f: 70, dur: 0.1, gain: 0.04 }],
+  door: [{ wave: 'square', f: 150, f2: 240, dur: 0.16, gain: 0.08 }, { wave: 'noise', filter: 1500, at: 0.12, dur: 0.05, gain: 0.1 }],
   click: [{ wave: 'square', f: 1200, dur: 0.02, gain: 0.04 }],
 };
 
@@ -46,7 +48,7 @@ export const MAX_VOICES = 12;
 export const STAR_DELAY = 0.45;
 export const STAR_GAP = 0.14;
 
-const EVENT_CUE = { move: 'step', turn: 'turn', wait: 'wait', bump: 'bump', grab: 'grab' };
+const EVENT_CUE = { move: 'step', turn: 'turn', wait: 'wait', bump: 'bump', grab: 'grab', belt: 'belt', carry: 'belt', door: 'door' };
 
 /**
  * Cues for new world.log events. At fast speeds only a bump is voiced (it

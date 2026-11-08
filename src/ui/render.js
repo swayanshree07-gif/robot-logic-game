@@ -16,6 +16,9 @@ const C = {
   goal: PALETTE.g, goalDk: '#1f4636', goalCore: '#b6ffd9',
   bin: '#7a5cff', binDk: '#4e37b8', binHi: '#a08bff', binIn: '#120f24',
   bump: '#ff6b6b',
+  belt: '#23262f', beltEdge: '#555c6e', beltArrow: '#f2a33a',
+  plate: '#6b7286', plateHi: '#9aa2bb', plateOn: '#5fd39a',
+  door: '#8a5a2b', doorDk: '#5a3a1a', doorStripe: '#f5d90a',
 };
 
 const statics = new WeakMap(); // world -> offscreen canvas of floor & walls
@@ -47,6 +50,8 @@ function staticLayer(world) {
         if (paint) drawPaint(ctx, x * T, y * T, paint);
         if (t === 'goal') drawPadBase(ctx, x * T, y * T);
         else if (t === 'bin') drawBin(ctx, x * T, y * T);
+        else if (t === 'belt') drawBelt(ctx, x * T, y * T, world.belts[y][x]);
+        else if (t === 'plate') drawPlate(ctx, x * T, y * T);
       }
     }
   }
@@ -138,6 +143,45 @@ function drawBin(ctx, X, Y) {
   px(ctx, X + 7, Y + 9, 2, 3, C.binHi); // down-arrow-ish label
 }
 
+// Conveyor: dark rubber with side rails and two chevrons pointing the way.
+function drawBelt(ctx, X, Y, dir) {
+  px(ctx, X + 1, Y + 1, T - 2, T - 2, C.belt);
+  const horiz = dir === 1 || dir === 3;
+  if (horiz) { px(ctx, X, Y + 1, T, 1, C.beltEdge); px(ctx, X, Y + T - 2, T, 1, C.beltEdge); }
+  else { px(ctx, X + 1, Y, 1, T, C.beltEdge); px(ctx, X + T - 2, Y, 1, T, C.beltEdge); }
+  for (const off of [3, 9]) {
+    for (let i = 0; i < 4; i++) {
+      // chevron drawn pointing east in local coords (u along belt, v across)
+      for (const [u, v] of [[off + i, 4 + i], [off + i, 11 - i]]) {
+        const [a, b] = [[v, T - 1 - u], [u, v], [v, u], [T - 1 - u, v]][dir];
+        px(ctx, X + a, Y + b, 1, 1, C.beltArrow);
+      }
+    }
+  }
+}
+
+function drawPlate(ctx, X, Y) {
+  px(ctx, X + 2, Y + 2, 12, 12, C.wallEdge);
+  px(ctx, X + 3, Y + 3, 10, 10, C.plate);
+  px(ctx, X + 3, Y + 3, 10, 1, C.plateHi);
+}
+
+// Plate indicator light (live) and doors (open/shut change during a run).
+function drawPlateLight(ctx, X, Y, on) {
+  px(ctx, X + 7, Y + 7, 2, 2, on ? C.plateOn : C.wallEdge);
+}
+
+function drawDoor(ctx, X, Y, open) {
+  if (open) { // slid into the frame: two thin jambs
+    px(ctx, X, Y, 2, T, C.doorDk); px(ctx, X + T - 2, Y, 2, T, C.doorDk);
+    return;
+  }
+  px(ctx, X, Y, T, T, C.doorDk);
+  px(ctx, X + 1, Y + 1, T - 2, T - 2, C.door);
+  for (let i = 0; i < T - 2; i += 4) px(ctx, X + 1 + i, Y + 6, 2, 3, C.doorStripe);
+  px(ctx, X + 7, Y + 1, 2, T - 2, C.doorDk);
+}
+
 function drawPadGlow(ctx, X, Y, time) {
   const pulse = 0.5 + 0.5 * Math.sin(time / 380);
   ctx.globalAlpha = 0.35 + 0.45 * pulse;
@@ -184,6 +228,8 @@ export function draw(ctx, world, { bump = null, pose = null, time = 0 } = {}) {
   for (let y = 0; y < world.height; y++) {
     for (let x = 0; x < world.width; x++) if (world.tiles[y][x] === 'goal') drawPadGlow(ctx, x * T, y * T, time);
   }
+  for (const p of world.plates || []) drawPlateLight(ctx, p.x * T, p.y * T, world.occupied(p.x, p.y));
+  for (const d of world.doors || []) drawDoor(ctx, d.x * T, d.y * T, d.open);
   for (const it of world.items) sprite(ctx, PART, it.x * T, it.y * T);
   const r = world.robot;
   const p = pose || { x: r.x, y: r.y, dir: r.dir, hop: 0 };

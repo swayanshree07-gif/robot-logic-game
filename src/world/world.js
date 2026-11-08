@@ -6,6 +6,13 @@
 //   B  bin (drop parts here)
 //   r y b  floor painted red / yellow / blue (read with the colour sensors)
 //   ^ > v <  Pip's start position and facing (floor underneath)
+//   N E S W  conveyor belt running north / east / south / west
+//   _        pressure plate      D  door (shut unless a plate is pressed)
+//
+// Tick semantics (docs/ticks.md): every successful action is one tick. After
+// the action, the factory updates in a fixed order: 1) belts carry Pip, then
+// parts, one tile each; 2) doors open iff some plate holds Pip or a part (an
+// occupied door stays jammed open); 3) win rules are checked by the runner.
 
 export const DIRS = [
   { name: 'N', dx: 0, dy: -1 },
@@ -14,7 +21,8 @@ export const DIRS = [
   { name: 'W', dx: -1, dy: 0 },
 ];
 const START = { '^': 0, '>': 1, 'v': 2, '<': 3 };
-const TILES = { '#': 'wall', '.': 'floor', 'G': 'goal', 'B': 'bin', 'o': 'floor', 'r': 'floor', 'y': 'floor', 'b': 'floor' };
+export const BELTS = { N: 0, E: 1, S: 2, W: 3 };
+const TILES = { N: 'belt', E: 'belt', S: 'belt', W: 'belt', '_': 'plate', 'D': 'door', '#': 'wall', '.': 'floor', 'G': 'goal', 'B': 'bin', 'o': 'floor', 'r': 'floor', 'y': 'floor', 'b': 'floor' };
 export const PAINT = { r: 'red', y: 'yellow', b: 'blue' };
 
 export function parseMap(rows) {
@@ -23,11 +31,13 @@ export function parseMap(rows) {
   const tiles = [];
   const paint = [];
   const items = [];
+  const belts = [];
   let robot = null;
   rows.forEach((row, y) => {
     if (row.length !== width) throw new Error(`map row ${y} has length ${row.length}, expected ${width}`);
     const line = [];
     paint.push([...row].map((ch) => PAINT[ch] || null));
+    belts.push([...row].map((ch) => (ch in BELTS ? BELTS[ch] : null)));
     [...row].forEach((ch, x) => {
       if (ch in START) {
         if (robot) throw new Error('map has more than one robot start');
@@ -43,7 +53,7 @@ export function parseMap(rows) {
     tiles.push(line);
   });
   if (!robot) throw new Error('map has no robot start (^ > v <)');
-  return { width, height: rows.length, tiles, paint, items, robot };
+  return { width, height: rows.length, tiles, paint, belts, items, robot };
 }
 
 /** Normalise a `win` field into an array of { type, count? } rules (no validation). */
@@ -63,6 +73,13 @@ export class World {
     this.height = m.height;
     this.tiles = m.tiles;
     this.paint = m.paint;
+    this.belts = m.belts;
+    this.doors = [];
+    this.plates = [];
+    m.tiles.forEach((row, y) => row.forEach((t, x) => {
+      if (t === 'door') this.doors.push({ x, y, open: false });
+      if (t === 'plate') this.plates.push({ x, y });
+    }));
     this.items = m.items.map((p) => ({ ...p }));
     this.robot = { ...m.robot, holding: 0 };
     this.capacity = level.capacity ?? 1;
@@ -71,6 +88,7 @@ export class World {
     this.rules = winRules(level.win);
     this.stats = { move: 0, left: 0, right: 0, grab: 0, drop: 0, wait: 0 };
     this.log = []; // events for renderer/sound: {type, ...}
+    this.updateDoors(false);
   }
 
   tile(x, y) {
@@ -88,7 +106,70 @@ export class World {
   }
 
   isBlocked(x, y) {
-    return this.tile(x, y) === 'wall';
+    const t = this.tile(x, y);
+    if (t === 'wall') return true;
+    if (t === 'door') return !this.doorAt(x, y).open;
+    return false;
+  }
+
+  doorAt(x, y) { return this.doors.find((d) => d.x === x && d.y === y); }
+
+  occupied(x, y) { return (this.robot.x === x && this.robot.y === y) || this.itemAt(x, y) >= 0; }
+
+  /** Phase 2 of a tick: doors follow the plates; an occupied door can't shut. */
+  updateDoors(log = true) {
+    const pressed = this.plates.some((p) => this.occupied(p.x, p.y));
+    for (const d of this.doors) {
+      const open = pressed || (d.open && this.occupied(d.x, d.y));
+      if (open !== d.open) {
+        d.open = open;
+        if (log) this.log.push({ type: 'door', x: d.x, y: d.y, open });
+      }
+    }
+  }
+
+  /** Phase 1 of a tick: belts move Pip, then parts, one tile each (if the way is open). */
+  runBelts() {
+    const r = this.robot;
+    const rd = this.belts[r.y][r.x];
+    if (rd !== null) {
+      const d = DIRS[rd], nx = r.x + d.dx, ny = r.y + d.dy;
+      if (!this.isBlocked(nx, ny)) {
+        r.x = nx; r.y = ny;
+        this.log.push({ type: 'belt', x: nx, y: ny });
+      }
+    }
+    // Parts: repeat passes so a queue of parts moves together; each moves at most once.
+    const moved = new Set();
+    let again = true;
+    while (again) {
+      again = false;
+      for (const it of this.items) {
+        if (moved.has(it)) continue;
+        const bd = this.belts[it.y][it.x];
+        if (bd === null) { moved.add(it); continue; }
+        const d = DIRS[bd], nx = it.x + d.dx, ny = it.y + d.dy;
+        if (this.isBlocked(nx, ny) || this.itemAt(nx, ny) >= 0) continue;
+        moved.add(it);
+        again = true;
+        it.x = nx; it.y = ny;
+        this.log.push({ type: 'carry', x: nx, y: ny });
+      }
+    }
+    for (let i = this.items.length - 1; i >= 0; i--) {
+      const it = this.items[i];
+      if (this.tile(it.x, it.y) === 'bin') {
+        this.items.splice(i, 1);
+        this.delivered++;
+        this.log.push({ type: 'drop', x: it.x, y: it.y, bin: true, belt: true });
+      }
+    }
+  }
+
+  /** Everything the factory does after one of Pip's actions. */
+  endTick() {
+    this.runBelts();
+    this.updateDoors();
   }
 
   sense(name) {
@@ -109,7 +190,7 @@ export class World {
 
   act(name) {
     const res = this.doAct(name);
-    if (res.ok) this.stats[name]++;
+    if (res.ok) { this.stats[name]++; this.endTick(); }
     return res;
   }
 
@@ -163,7 +244,8 @@ export class World {
   stateKey() {
     const r = this.robot;
     const items = this.items.map((it) => `${it.x},${it.y}`).sort().join(';');
-    return `${r.x},${r.y},${r.dir},${r.holding}|${items}|${this.delivered}`;
+    const doors = this.doors.map((d) => (d.open ? 1 : 0)).join('');
+    return `${r.x},${r.y},${r.dir},${r.holding}|${items}|${this.delivered}|${doors}`;
   }
 
   /** Is one win rule satisfied right now? */

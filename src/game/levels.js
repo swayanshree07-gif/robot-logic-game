@@ -123,6 +123,20 @@ export const PROTOTYPES = [
     solution: 'move 2\ngrab\nmove\ndrop\nright\nright\nmove 4',
   },
   {
+    id: 'proto-10',
+    name: 'Belt & Plate Test Rig',
+    brief: 'Dev rig for factory mechanics: weigh the plate down with a part to hold the door, ride the belt to the bin, then dock.',
+    win: [{ type: 'deliver', count: 1 }, 'reach'],
+    map: [
+      '#########',
+      '#>o_..DG#',
+      '#.##.####',
+      '#oEEB####',
+      '#########',
+    ],
+    solution: 'move\ngrab\nmove\ndrop\nleft\nleft\nmove 2\nleft\nmove 2\ngrab\nleft\nmove\ndrop\nleft\nmove 2\nright\nmove 3',
+  },
+  {
     id: 'proto-9',
     name: 'Shuttle Run',
     brief: 'Three parts, one gripper. Shuttle them to the bin one by one — the sensors tell you when to stop.',

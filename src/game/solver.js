@@ -3,19 +3,20 @@
 // later for hints and level-editor verification (PLAN Day 16 extends this).
 //
 // The search runs the real World rules (no separate model to drift), cloning
-// the world for each branch. `wait` never helps, so it is not tried.
+// the world for each branch. `wait` matters once belts or doors move things (a still world just repeats a seen state).
 // By default `drop` is only tried on a bin: putting a part back on the floor
 // only matters for puzzles built around it, and it multiplies the state space
 // (pass { floorDrops: true } to allow it).
 import { World } from '../world/world.js';
 
-const TRY = ['move', 'left', 'right', 'grab', 'drop'];
+const TRY = ['move', 'left', 'right', 'grab', 'drop', 'wait'];
 
 function cloneWorld(w) {
   const c = Object.create(World.prototype);
   Object.assign(c, w);
   c.robot = { ...w.robot };
   c.items = w.items.map((it) => ({ ...it }));
+  c.doors = w.doors.map((d) => ({ ...d }));
   c.stats = { ...w.stats };
   c.log = []; // the solver doesn't need events
   return c;

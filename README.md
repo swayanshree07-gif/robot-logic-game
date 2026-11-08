@@ -189,7 +189,10 @@ fills defaults and round-trips JSON):
   floors: [[...map rows...]] } // optional extra test floors (up to 5), same rules
 ```
 Map legend: `#` wall, `.` floor, `G` goal pad, `B` bin, `o` part, `r y b`
-coloured floor, `> v < ^` Pip's start and facing. Win rules: **reach** (stand on
+coloured floor, `> v < ^` Pip's start and facing, `N E S W` conveyor belts,
+`_` pressure plate, `D` door (open while any plate holds Pip or a part). Belts
+and doors update after every action in a fixed order — see
+[`docs/ticks.md`](docs/ticks.md). Win rules: **reach** (stand on
 a pad), **collect** (no parts left on the floor), **deliver** (parts dropped into
 bins, all or `count`); a list means all at once. `tools` restricts the commands
 on a level; using a locked one gives a positioned error. Validation catches
@@ -275,7 +278,7 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
-Day 12 of 30 (milestones through Day 14 done): language core with friendly
+Day 13 of 30 (milestones through Day 15 done): language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1
 with validation, per-level unlocked commands, reach/collect/deliver win rules
 and test floors; World 1 (8 levels), World 2 (8 sensor levels) and World 3
@@ -286,5 +289,6 @@ Run/Pause/Step/Stop/Reset, speed, HUD, result banner and test-floor switcher;
 code-drawn pixel art with tweened animation; synthesized sound with saved
 mute/volume; a step debugger with breakpoints, step over / out, call-stack,
 function and memory panels; lint warnings; memory registers; a BFS solver; a
-level report script. 181 automated tests. Next: Day 15, factory mechanics
-(conveyors, doors + pressure plates).
+level report script; factory mechanics (conveyor belts, pressure plates,
+doors, documented tick order) with a dev test rig (`?id=proto-10`). 194
+automated tests. Next: Day 16, BFS/A* path-planning module.
