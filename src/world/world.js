@@ -27,14 +27,14 @@ export const BELTS = { N: 0, E: 1, S: 2, W: 3 };
 const TILES = { N: 'belt', E: 'belt', S: 'belt', W: 'belt', '_': 'plate', 'D': 'door', '#': 'wall', '.': 'floor', 'G': 'goal', 'B': 'bin', 'o': 'floor', 'r': 'floor', 'y': 'floor', 'b': 'floor' };
 export const PAINT = { r: 'red', y: 'yellow', b: 'blue' };
 
-export function parseMap(rows) {
+export function parseMap(rows, { maxRobots = 1 } = {}) {
   if (!Array.isArray(rows) || rows.length === 0) throw new Error('map must be a non-empty array of rows');
   const width = rows[0].length;
   const tiles = [];
   const paint = [];
   const items = [];
   const belts = [];
-  let robot = null;
+  const robots = [];
   rows.forEach((row, y) => {
     if (row.length !== width) throw new Error(`map row ${y} has length ${row.length}, expected ${width}`);
     const line = [];
@@ -42,8 +42,8 @@ export function parseMap(rows) {
     belts.push([...row].map((ch) => (ch in BELTS ? BELTS[ch] : null)));
     [...row].forEach((ch, x) => {
       if (ch in START) {
-        if (robot) throw new Error('map has more than one robot start');
-        robot = { x, y, dir: START[ch] };
+        if (robots.length >= maxRobots) throw new Error(maxRobots === 1 ? 'map has more than one robot start' : `map has more than ${maxRobots} robot starts`);
+        robots.push({ x, y, dir: START[ch] });
         line.push('floor');
       } else if (ch in TILES) {
         line.push(TILES[ch]);
@@ -54,8 +54,9 @@ export function parseMap(rows) {
     });
     tiles.push(line);
   });
-  if (!robot) throw new Error('map has no robot start (^ > v <)');
-  return { width, height: rows.length, tiles, paint, belts, items, robot };
+  if (!robots.length) throw new Error('map has no robot start (^ > v <)');
+  // Crew maps: robots are numbered in reading order (top row first, then left to right).
+  return { width, height: rows.length, tiles, paint, belts, items, robot: robots[0], robots };
 }
 
 /** Normalise a `win` field into an array of { type, count? } rules (no validation). */
@@ -69,8 +70,8 @@ export class World {
    * level: { map: string[], win?: rule | rule[], capacity?: number } (see level.js)
    * robot.holding is the number of parts Pip carries (0 = empty gripper).
    */
-  constructor(level) {
-    const m = parseMap(level.map);
+  constructor(level, { maxRobots = 1 } = {}) {
+    const m = parseMap(level.map, { maxRobots });
     this.width = m.width;
     this.height = m.height;
     this.tiles = m.tiles;
@@ -83,7 +84,11 @@ export class World {
       if (t === 'plate') this.plates.push({ x, y });
     }));
     this.items = m.items.map((p) => ({ ...p }));
-    this.robot = { ...m.robot, holding: 0 };
+    // Crews: `robots` lists every robot; `robot` is the one currently acting
+    // or sensing (select(i)). Single-robot worlds just have robots = [robot].
+    this.robots = m.robots.map((r, id) => ({ ...r, id, holding: 0 }));
+    this.robot = this.robots[0];
+    this.deferTicks = false; // crew mode: the scheduler calls endTick() once per round
     this.capacity = level.capacity ?? 1;
     this.delivered = 0;
     this.totalItems = m.items.length;
@@ -116,7 +121,12 @@ export class World {
 
   doorAt(x, y) { return this.doors.find((d) => d.x === x && d.y === y); }
 
-  occupied(x, y) { return (this.robot.x === x && this.robot.y === y) || this.itemAt(x, y) >= 0; }
+  robotAt(x, y) { return this.robots.find((r) => r.x === x && r.y === y) || null; }
+
+  occupied(x, y) { return this.robotAt(x, y) !== null || this.itemAt(x, y) >= 0; }
+
+  /** Make robot `i` the one that acts and senses. */
+  select(i) { this.robot = this.robots[i]; return this; }
 
   /** Phase 2 of a tick: doors follow the plates; an occupied door can't shut. */
   updateDoors(log = true) {
@@ -132,13 +142,14 @@ export class World {
 
   /** Phase 1 of a tick: belts move Pip, then parts, one tile each (if the way is open). */
   runBelts() {
-    const r = this.robot;
-    const rd = this.belts[r.y][r.x];
-    if (rd !== null) {
+    for (const r of this.robots) {
+      const rd = this.belts[r.y][r.x];
+      if (rd === null) continue;
       const d = DIRS[rd], nx = r.x + d.dx, ny = r.y + d.dy;
-      if (!this.isBlocked(nx, ny)) {
+      const other = this.robotAt(nx, ny);
+      if (!this.isBlocked(nx, ny) && !other) {
         r.x = nx; r.y = ny;
-        this.log.push({ type: 'belt', x: nx, y: ny });
+        this.log.push({ type: 'belt', x: nx, y: ny, robot: r.id });
       }
     }
     // Parts: repeat passes so a queue of parts moves together; each moves at most once.
@@ -193,7 +204,7 @@ export class World {
 
   act(name) {
     const res = this.doAct(name);
-    if (res.ok) { this.stats[name]++; this.endTick(); }
+    if (res.ok) { this.stats[name]++; if (!this.deferTicks) this.endTick(); }
     return res;
   }
 
@@ -205,6 +216,11 @@ export class World {
         if (this.isBlocked(p.x, p.y)) {
           this.log.push({ type: 'bump', x: p.x, y: p.y });
           return { ok: false, error: 'Pip bumped into a wall', code: 'bump' };
+        }
+        const other = this.robotAt(p.x, p.y);
+        if (other) {
+          this.log.push({ type: 'crash', x: p.x, y: p.y, robot: r.id, other: other.id });
+          return { ok: false, error: `robot ${r.id + 1} ran into robot ${other.id + 1}`, code: 'crash' };
         }
         r.x = p.x; r.y = p.y;
         this.log.push({ type: 'move', x: r.x, y: r.y });
@@ -246,15 +262,18 @@ export class World {
   /** Compact string of all mutable state (used for cycle detection). */
   stateKey() {
     const r = this.robot;
+    const bots = this.robots.length === 1 ? `${r.x},${r.y},${r.dir},${r.holding}`
+      : this.robots.map((b) => `${b.x},${b.y},${b.dir},${b.holding}`).join('/');
     const items = this.items.map((it) => `${it.x},${it.y}`).sort().join(';');
     const doors = this.doors.map((d) => (d.open ? 1 : 0)).join('');
-    return `${r.x},${r.y},${r.dir},${r.holding}|${items}|${this.delivered}|${doors}`;
+    return `${bots}|${items}|${this.delivered}|${doors}`;
   }
 
   /** Is one win rule satisfied right now? */
   ruleMet(rule) {
     switch (rule.type) {
-      case 'reach': return this.tile(this.robot.x, this.robot.y) === 'goal';
+      // Crews: every robot must stand on a goal pad.
+      case 'reach': return this.robots.every((b) => this.tile(b.x, b.y) === 'goal');
       case 'collect': return this.items.length === 0;
       case 'deliver': return this.delivered >= (rule.count ?? this.totalItems);
       default: return false;
@@ -271,7 +290,13 @@ export class World {
     const out = [];
     for (const rule of this.rules) {
       if (this.ruleMet(rule)) continue;
-      if (rule.type === 'reach') out.push('Pip is not on a goal pad');
+      if (rule.type === 'reach') {
+        if (this.robots.length === 1) out.push('Pip is not on a goal pad');
+        else {
+          const off = this.robots.filter((b) => this.tile(b.x, b.y) !== 'goal').map((b) => b.id + 1);
+          out.push(`robot${off.length === 1 ? '' : 's'} ${off.join(', ')} not on a goal pad`);
+        }
+      }
       else if (rule.type === 'collect') {
         const n = this.items.length;
         out.push(`${n} part${n === 1 ? ' is' : 's are'} still on the floor`);

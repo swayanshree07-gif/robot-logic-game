@@ -34,3 +34,21 @@ Consequences worth knowing when designing levels:
 Events added to `world.log`: `belt` (Pip carried), `carry` (a part moved),
 `door` (`open: true|false`), and `drop` with `belt: true` for belt deliveries.
 They drive the sounds (`belt`, `door` cues) like the other events.
+
+## Crews (several robots, Day 16)
+
+Maps may hold up to 4 robot starts when run by the crew runner (`src/game/crew.js`);
+robots are numbered in reading order (top row first, then left to right). Each robot
+runs its own Cog program. One tick = one **round**:
+
+1. Every robot whose program is still running executes up to and including its next
+   action, in robot order (robot 1 first). A robot may move into a tile another robot
+   left earlier in the same round. Moving into a tile a robot stands on is a **crash**
+   (`code: 'crash'`) and ends the run, so robots can never swap places head-on.
+2. The factory updates once: belts carry robots (never into another robot), then parts;
+   then doors follow the plates (a robot on a plate holds it).
+3. Win rules are checked. `reach` needs **every** robot on a goal pad.
+
+A robot whose program ends stands still; the run fails once all programs have ended.
+The battery (`maxSteps`) counts rounds. Loop detection covers the world plus all VMs.
+One-robot levels still use `Runner` and are unchanged.

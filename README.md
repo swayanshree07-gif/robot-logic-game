@@ -290,7 +290,7 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
-Day 15 of 30 (milestones through Day 17 done): language core with friendly
+Day 16 of 30 (plan rewritten on Day 16 for the owner's extended goals; Day 16 done): language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1
 with validation, per-level unlocked commands, reach/collect/deliver win rules
 and test floors; World 1 (8 levels), World 2 (8 sensor levels) World 3
@@ -303,5 +303,9 @@ mute/volume; a step debugger with breakpoints, step over / out, call-stack,
 function and memory panels; lint warnings; memory registers; a BFS solver; a
 level report script; factory mechanics (conveyor belts, pressure plates,
 doors, documented tick order) with a dev test rig (`?id=proto-10`); a
-path-planning module (BFS distance field + A*) behind the new `scan` sensor.
-208 automated tests. Next: Day 18, multiple robots (lock-step scheduler).
+path-planning module (BFS distance field + A*) behind the new `scan` sensor;
+a multi-robot **crew runner** (`src/game/crew.js`: lock-step rounds, crashes,
+shared belts/plates/doors; see `docs/ticks.md`), not yet in the UI.
+220 automated tests. Next: Day 17, signals between robots (`send`/`wait`,
+deadlock detection). Still planned: World 5 crew levels, medals scoring,
+level editor with share codes, and an automated solver check of every level.

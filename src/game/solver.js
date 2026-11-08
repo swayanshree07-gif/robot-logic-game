@@ -15,7 +15,8 @@ const TRY = ['move', 'left', 'right', 'grab', 'drop', 'wait'];
 function cloneWorld(w) {
   const c = Object.create(World.prototype);
   Object.assign(c, w);
-  c.robot = { ...w.robot };
+  c.robots = w.robots.map((r) => ({ ...r }));
+  c.robot = c.robots[w.robots.indexOf(w.robot)];
   c.items = w.items.map((it) => ({ ...it }));
   c.doors = w.doors.map((d) => ({ ...d }));
   c.stats = { ...w.stats };
