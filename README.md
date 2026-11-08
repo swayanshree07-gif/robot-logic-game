@@ -29,7 +29,7 @@ Error-message wording is pinned by `test/snapshots/errors.snap.txt`; after an
 intentional change, regenerate it and review the diff.
 
 Dev URL parameters (handy for scripted screenshots): `?level=N` opens level N
-(position in the full list: 1–8 World 1, 9–16 World 2); `?id=proto-8` opens
+(position in the full list: 1–8 World 1, 9–16 World 2, 17–24 World 3); `?id=proto-8` opens
 any level by id, including the old prototype fixtures (every tool unlocked);
 `&code=...` (URL-encoded) loads that program; `&run=1` takes one step,
 `&run=all` runs it instantly (finished before the first paint); `&solve=1` runs
@@ -210,6 +210,15 @@ Levels are grouped into worlds (`src/game/levels.js` → `WORLDS`, `LEVELS`).
   (`clear_left`, `while holding`), 2-8 Calibration Run (everything at once).
   2-1 is a delivery rather than "reach the pad" on purpose: reaching a pad
   ends the run even mid-`move N`, so `move <longest>` would beat every floor.
+- **World 3 "Assembly Line"** (`src/game/worlds/w3.js`, 8 levels, functions
+  then memory registers): 3-1 Pallet Stairs (`def`), 3-2 Pillar Loop (a
+  sensing routine run round a pillar), 3-3 Odometer (count out, walk back —
+  no bin sensor), 3-4 Zigzag Relay (a register toggles the next turn: a state
+  machine), 3-5 Return Trip (counted fetch in a `def`), 3-6 Every Third Mark
+  (counter that resets), 3-7 Floor Select (read a number off the floor, use it
+  as a distance), 3-8 Last Call (fetch until empty, a flag register ends the
+  loop). Counting levels lock the `bin` sensor and the state-machine levels
+  lock wall sensors, so remembering is the only way.
 - The Day 1–4 prototypes are no longer in the level list; they stay in
   `PROTOTYPES` / `ALL_LEVELS` as test fixtures.
 
@@ -228,6 +237,8 @@ give a clear banner, and briefs only show unlocked commands.
 unlock in order and get used, **the best fixed route for any one floor fails
 another floor** (so sensing is really needed), solutions win on 360 seeded
 random floors (6 generators × 60), and the test-floor rules in `PlaySession`.
+`test/world3.test.js` checks World 3 the same way (floors, pars, fixed routes
+fail, memory really needed, 240 seeded random floors).
 `test/save.test.js` covers saving with a fake storage (reload, legacy import,
 corrupt / newer / full / blocked storage, reset) and the map (unlock rule,
 playing every solution in order keeps the next level open, totals, Continue).
@@ -264,17 +275,16 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
-Day 11 of 30 (milestones through Day 13 done): language core with friendly
+Day 12 of 30 (milestones through Day 14 done): language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1
 with validation, per-level unlocked commands, reach/collect/deliver win rules
-and test floors; World 1 (8 levels) and World 2 (8 sensor levels, 3 floors
-each) with par scores and stars that add up across runs; a world map / level
-select with unlocks and a versioned, migration-safe save; a level screen with
-a line-numbered text editor **and a block editor** (lossless text ⇄ blocks),
+and test floors; World 1 (8 levels), World 2 (8 sensor levels) and World 3
+(8 function/memory levels), 3 test floors on most levels, with par scores and
+stars; a world map / level select with unlocks and a versioned save; a level
+screen with a text editor **and a block editor** (lossless text ⇄ blocks),
 Run/Pause/Step/Stop/Reset, speed, HUD, result banner and test-floor switcher;
-code-drawn pixel art with tweened animation; synthesized sound effects and
-ambient hum with saved mute/volume; a step debugger with breakpoints, step
-over / step out, call-stack / repeat-block and function panels; lint
-warnings; memory registers (`set`/`add`/`sub`, comparisons) shown in the
-debugger; a BFS solver; a level report script. 172 automated tests. Next:
-Day 14, World 3 "Assembly Line" (functions, state machines).
+code-drawn pixel art with tweened animation; synthesized sound with saved
+mute/volume; a step debugger with breakpoints, step over / out, call-stack,
+function and memory panels; lint warnings; memory registers; a BFS solver; a
+level report script. 181 automated tests. Next: Day 15, factory mechanics
+(conveyors, doors + pressure plates).

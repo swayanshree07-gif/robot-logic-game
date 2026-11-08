@@ -9,6 +9,7 @@
 //   ALL_LEVELS  LEVELS plus prototypes that aren't playable (for level-wide tests)
 import { WORLD1 } from './worlds/w1.js';
 import { WORLD2 } from './worlds/w2.js';
+import { WORLD3 } from './worlds/w3.js';
 
 export const PROTOTYPES = [
   {
@@ -153,7 +154,7 @@ export const PROTOTYPES = [
 
 // The Day-1..4 prototypes are no longer played: World 2 grew out of them.
 // They stay in PROTOTYPES / ALL_LEVELS as test fixtures.
-export const WORLDS = [WORLD1, WORLD2];
+export const WORLDS = [WORLD1, WORLD2, WORLD3];
 
 export const LEVELS = WORLDS.flatMap((w) => w.levels);
 export const ALL_LEVELS = [...LEVELS, ...PROTOTYPES.filter((p) => !LEVELS.includes(p))];

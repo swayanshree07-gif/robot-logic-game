@@ -9,9 +9,9 @@
 
 export const OPEN_AHEAD = 2;
 
-/** Worlds in the plan that aren't built yet, shown as locked cards on the map. */
+/** Worlds in the plan that aren't built yet, shown as locked cards on the map
+ *  (an entry whose id is already a built world is skipped). */
 export const UPCOMING_WORLDS = [
-  { id: 'w3', name: 'Assembly Line', blurb: 'Functions and state machines on the production line.' },
   { id: 'w4', name: 'Maze Wing', blurb: 'Path planning and memory in the old storage wing.' },
   { id: 'w5', name: 'Swarm Floor', blurb: 'Several robots, one job: signals and cooperation.' },
 ];
@@ -50,7 +50,7 @@ export function mapModel(worlds, progress, { current = null, upcoming = UPCOMING
       levels,
     };
   });
-  const later = upcoming.map((w, i) => ({
+  const later = upcoming.filter((w) => !worlds.some((b) => b.id === w.id)).map((w, i) => ({
     ...w, tag: String(worlds.length + i + 1), built: false, open: false, stars: 0, maxStars: 0, solved: 0, levels: [],
   }));
   return [...built, ...later];

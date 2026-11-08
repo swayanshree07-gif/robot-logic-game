@@ -22,7 +22,7 @@ shot() {
     --screenshot "$PWD/$OUT/$1.png" "$U?$2" >/dev/null 2>&1
   [ -s "$OUT/$1.png" ] && echo "ok   $1" || echo "FAIL $1"
 }
-# level numbers are positions in LEVELS: 1-8 World 1, 9-16 World 2; id=proto-8 is a fixture with every tool unlocked
+# level numbers are positions in LEVELS: 1-8 World 1, 9-16 World 2, 17-24 World 3; id=proto-8 is a fixture with every tool unlocked
 shot edit    "level=1"
 shot step    "level=4&code=repeat%205%0A%20%20move%0A%20%20right%0Aend&run=1"
 shot bump    "level=2&code=move%0Amove%0Amove%0Amove&run=all"
@@ -46,4 +46,5 @@ shot paint   "level=13&solve=1"
 shot floor3  "level=16&floor=3&solve=1"
 # world map (last, so the wins from the solve=1 shots above show as stars in the profile's save)
 shot map     "map=1"
+shot w3memory "id=w3-8&solve=1&floor=1"
 shot start   "x=1"
