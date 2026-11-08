@@ -12,6 +12,8 @@
 //   { op:'halt' }                end of main program
 //   { op:'mem', kind, name, value }  set/add/sub a register (no tick);
 //                                value = { type:'num', value } | { type:'reg', name }
+//   { op:'sig', kind, name }     kind 'send' raises signal `name` (no tick);
+//                                kind 'wait' blocks until one is pending, then uses it up
 // Every op carries `line` (source line, 0 for synthetic ops) and, for real
 // statements, `col` (1-based column of the statement keyword).
 
@@ -61,6 +63,9 @@ export function compile(ast) {
       }
       case 'memory':
         emit({ op: 'mem', kind: s.op, name: s.name, value: s.value, line: s.line, col: s.col });
+        break;
+      case 'signal':
+        emit({ op: 'sig', kind: s.op, name: s.name, line: s.line, col: s.col });
         break;
       case 'call':
         callFixups.push(emit({ op: 'call', fn: -1, name: s.name, line: s.line, col: s.col }));

@@ -162,7 +162,14 @@ Sensors: `clear`, `wall`, `clear_left`, `clear_right` (range finders), `goal`,
 `item`, `holding`, `bin` (tile / gripper), `red`, `yellow`, `blue` (floor colour
 under Pip), `scan` (path planner: true when the tile ahead is one step
 closer, by shortest path, to the current target — a bin while holding a part,
-else the nearest part, else a goal pad; locked until World 4). Combine with `not`, `and`, `or`, parentheses.
+else the nearest part, else a goal pad; locked until World 4), `signal` (crews:
+some signal is pending). Combine with `not`, `and`, `or`, parentheses.
+
+Crews (several robots, each with its own program) talk with signals:
+`send NAME` raises signal NAME (no step), `wait NAME` stands still until one is
+pending and then uses it up (plain `wait` still just waits one step). Signals
+count up. If every running robot is waiting and nothing moves, the run stops
+with a **deadlock** message naming who waits for what. Locked until World 5.
 
 Mistakes get a friendly message with line, column and a caret, plus a hint:
 ```
@@ -290,7 +297,7 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
-Day 16 of 30 (plan rewritten on Day 16 for the owner's extended goals; Day 16 done): language core with friendly
+Day 17 of 30 (plan rewritten on Day 16 for the owner's extended goals; Day 17 done): language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1
 with validation, per-level unlocked commands, reach/collect/deliver win rules
 and test floors; World 1 (8 levels), World 2 (8 sensor levels) World 3
@@ -305,7 +312,8 @@ level report script; factory mechanics (conveyor belts, pressure plates,
 doors, documented tick order) with a dev test rig (`?id=proto-10`); a
 path-planning module (BFS distance field + A*) behind the new `scan` sensor;
 a multi-robot **crew runner** (`src/game/crew.js`: lock-step rounds, crashes,
-shared belts/plates/doors; see `docs/ticks.md`), not yet in the UI.
-220 automated tests. Next: Day 17, signals between robots (`send`/`wait`,
-deadlock detection). Still planned: World 5 crew levels, medals scoring,
+shared belts/plates/doors; see `docs/ticks.md`) with **signals**
+(`send`/`wait NAME`, `signal` sensor, deadlock detection, crew lint, signal
+blocks), not yet in the UI. 233 automated tests. Next: Day 18, crew levels in
+the level format and the multi-robot UI. Still planned: World 5 crew levels, medals scoring,
 level editor with share codes, and an automated solver check of every level.

@@ -21,7 +21,7 @@ Line 1, col 7: unknown sensor 'clera' — did you mean 'clear'?
    |       ^^^^^
 
 ### unknown sensor, no suggestion
-Line 1, col 4: unknown sensor 'banana' — sensors are: clear, wall, clear_left, clear_right, goal, item, holding, bin, red, yellow, blue, scan
+Line 1, col 4: unknown sensor 'banana' — sensors are: clear, wall, clear_left, clear_right, goal, item, holding, bin, red, yellow, blue, scan, signal
  1 | if banana
    |    ^^^^^^
 

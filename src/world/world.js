@@ -198,6 +198,7 @@ export class World {
       case 'bin': return this.tile(r.x, r.y) === 'bin';
       case 'red': case 'yellow': case 'blue': return this.paint[r.y][r.x] === name;
       case 'scan': return scanAhead(this);
+      case 'signal': return false; // signals live in the crew runner, which answers this itself
       default: throw new Error(`unknown sensor ${name}`);
     }
   }

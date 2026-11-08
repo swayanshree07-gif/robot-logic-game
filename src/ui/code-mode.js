@@ -44,7 +44,7 @@ function paletteId(b) {
   switch (b.kind) {
     case 'action': return b.name;
     case 'call': return `call:${b.name}`;
-    case 'repeat': case 'while': case 'if': case 'def': case 'set': case 'add': case 'sub': return b.kind;
+    case 'repeat': case 'while': case 'if': case 'def': case 'set': case 'add': case 'sub': case 'send': case 'await': return b.kind;
     default: return '';
   }
 }

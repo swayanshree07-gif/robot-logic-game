@@ -9,7 +9,7 @@
 import {
   render as renderText, palette, insertBlock, removeBlock, updateBlock, moveBlock, addBranch, removeBranch,
   renameFunction, nameProblem, clampCount, condText, parseCondition, getAt, placementProblem,
-  valueText, parseValue, registerProblem,
+  valueText, parseValue, registerProblem, signalProblem,
 } from '../lang/blocks.js';
 
 const MIME_PATH = 'application/x-cog-path';
@@ -251,6 +251,9 @@ export class BlockEditor {
       case 'set': case 'add': case 'sub':
         h.append(el('span', 'kw', b.kind), this.regName(b, path), this.valueField(b, path));
         break;
+      case 'send': case 'await':
+        h.append(el('span', 'kw sig', b.kind === 'send' ? 'send' : 'wait for'), this.regName(b, path, 'Signal', signalProblem));
+        break;
       case 'note': h.append(this.text(b.text, 'note', (text) => updateBlock(this.blocks, path, { text }))); break;
       case 'blank': h.append(el('span', 'dim', 'blank line')); break;
       default: break;
@@ -339,21 +342,21 @@ export class BlockEditor {
     return i;
   }
 
-  regName(b, path) {
+  regName(b, path, what = 'Register', problem = registerProblem) {
     const i = el('input', 'name');
     i.value = b.name;
     i.spellcheck = false;
-    i.setAttribute('aria-label', 'Register name');
+    i.setAttribute('aria-label', `${what} name`);
     i.size = Math.max(3, b.name.length + 1);
     i.oninput = () => {
-      const p = registerProblem(this.blocks, i.value.trim().toLowerCase());
+      const p = problem(this.blocks, i.value.trim().toLowerCase());
       i.classList.toggle('invalid', Boolean(p));
       i.title = p;
     };
     i.onchange = () => {
       const name = i.value.trim().toLowerCase();
-      const p = registerProblem(this.blocks, name);
-      if (p) { this.onProblem(`Register name: ${p}`); return; }
+      const p = problem(this.blocks, name);
+      if (p) { this.onProblem(`${what} name: ${p}`); return; }
       if (name !== b.name) this.commit(updateBlock(this.blocks, path, { name }));
     };
     return i;

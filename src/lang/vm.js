@@ -3,6 +3,7 @@
 // The VM is host-agnostic: a host object supplies
 //   host.act(name)   -> { ok: true } | { ok: false, error: string, code?: string }
 //   host.sense(name) -> boolean
+//   host.send(name), host.take(name) -> boolean   (signals; crews only)
 // so the same VM can drive one robot or many.
 //
 // Limits (all produce a runtime CogError with a `code`):
@@ -23,7 +24,7 @@ export const MAX_CALL_DEPTH = 64;
 export const MAX_IDLE_OPS = 10000; // ops in a row without an action => probably stuck
 export const DEFAULT_MAX_TICKS = 2000;
 
-const OP_WORD = { push: 'repeat', loop: 'repeat', jf: 'while' }; // mem ops use `kind`
+const OP_WORD = { push: 'repeat', loop: 'repeat', jf: 'while' }; // mem/sig ops use `kind`
 
 export class VM {
   /** @param {{code: object[]}} program  @param {object} host  @param {{maxTicks?, maxCallDepth?}} [opt] */
@@ -96,7 +97,7 @@ export class VM {
   /** Stop with a runtime error pointing at instruction `ins` (or the current one). */
   fail(message, code, { ins = this.code[this.pc], hint = '' } = {}) {
     this.status = 'error';
-    const word = ins && (ins.op === 'mem' ? ins.kind : ins.name || OP_WORD[ins.op]);
+    const word = ins && (ins.op === 'mem' || ins.op === 'sig' ? ins.kind : ins.name || OP_WORD[ins.op]);
     this.error = new CogError(message, ins ? ins.line : 0, {
       col: ins && ins.line ? ins.col || 0 : 0, length: word ? word.length : 1, hint, kind: 'runtime',
     });
@@ -107,6 +108,8 @@ export class VM {
   /**
    * Execute exactly one instruction.
    * Returns an event: { type: 'action', name, ok, line } | { type: 'op', line }
+   *                   | { type: 'blocked', name, line }  (`wait NAME` with no signal pending;
+   *                     the pc stays on the wait, so the next tick tries again)
    *                   | { type: 'halt' } | { type: 'error', error }
    */
   step() {
@@ -154,6 +157,15 @@ export class VM {
             { hint: 'is a counter running away?' });
         }
         this.regs[ins.name] = next;
+        this.pc++;
+        break;
+      }
+      case 'sig': {
+        if (typeof this.host.send !== 'function') {
+          return this.fail('signals only work with a crew of robots', 'signal', { hint: `'${ins.kind} ${ins.name}' needs a partner robot` });
+        }
+        if (ins.kind === 'send') this.host.send(ins.name);
+        else if (!this.host.take(ins.name)) return { type: 'blocked', name: ins.name, line: ins.line, col: ins.col };
         this.pc++;
         break;
       }

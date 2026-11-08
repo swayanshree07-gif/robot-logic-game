@@ -7,8 +7,46 @@
 //     'empty'      a block or function with nothing inside
 //     'repeat1'    `repeat 1` runs its body just once
 //     'unread'     a register is written but never read (in a condition or as a value)
+//
+//   lintCrew(asts) -> per robot, CogError[] warnings about signals across the crew:
+//     'nosend'     `wait NAME` but no robot ever sends NAME (it would block forever)
+//     'nowait'     `send NAME` but no robot ever waits for NAME
 import { CogError } from './errors.js';
 import { parse } from './parser.js';
+
+const signalNodes = (ast) => {
+  const out = [];
+  const walk = (stmts) => {
+    for (const s of stmts) {
+      if (s.type === 'signal') out.push(s);
+      if (s.body) walk(s.body);
+      if (s.branches) s.branches.forEach((b) => walk(b.body));
+      if (s.elseBody) walk(s.elseBody);
+    }
+  };
+  walk(ast.main);
+  for (const f of Object.values(ast.functions)) walk(f.body);
+  return out;
+};
+
+export function lintCrew(asts) {
+  const nodes = asts.map(signalNodes);
+  const sent = new Set(), waited = new Set();
+  for (const list of nodes) for (const s of list) (s.op === 'send' ? sent : waited).add(s.name);
+  return nodes.map((list) => {
+    const out = [];
+    for (const s of list) {
+      if (s.op === 'wait' && !sent.has(s.name)) {
+        out.push(warn('nosend', `no robot ever sends '${s.name}'`, { line: s.line, col: s.nameCol }, s.name.length,
+          `this wait would block forever; add 'send ${s.name}' to a partner's program`));
+      } else if (s.op === 'send' && !waited.has(s.name)) {
+        out.push(warn('nowait', `no robot waits for '${s.name}'`, { line: s.line, col: s.nameCol }, s.name.length,
+          `the signal is never used; add 'wait ${s.name}' to a partner's program`));
+      }
+    }
+    return out.sort((a, b) => a.line - b.line || a.col - b.col);
+  });
+}
 
 const warn = (code, message, node, length, hint = '') => {
   const e = new CogError(message, node.line, { col: node.col || 0, length, hint, kind: 'warning' });

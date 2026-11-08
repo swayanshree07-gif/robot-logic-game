@@ -8,6 +8,7 @@
 //   { kind: 'while', cond, body: [...] }              cond = parser condition AST
 //   { kind: 'if', branches: [{ cond, body }], elseBody: [...] | null }
 //   { kind: 'def', name: 'hop', body: [...] }
+//   { kind: 'send' | 'await', name: 'ready' }         signals: `send NAME` / `wait NAME`
 //   { kind: 'set' | 'add' | 'sub', name: 'n', value }  value = { type: 'num', value } | { type: 'reg', name }
 //   { kind: 'note', text: ' a comment line' }         full-line `#` comment
 //   { kind: 'blank' }                                  empty line
@@ -88,6 +89,7 @@ export function toBlocks(source) {
       case 'if': b = { kind: 'if', branches: [{ cond: node.branches[0].cond, body: [] }], elseBody: null }; break;
       case 'def': b = { kind: 'def', name: node.name, body: [] }; break;
       case 'memory': b = { kind: node.op, name: node.name, value: node.value }; break;
+      case 'signal': b = { kind: node.op === 'send' ? 'send' : 'await', name: node.name }; break;
       default: throw new Error(`blocks: unexpected node ${node.type} on line ${line}`);
     }
     b = withComment(b);
@@ -142,6 +144,8 @@ export function headerText(b) {
     case 'if': return `if ${condText(b.branches[0].cond)}`;
     case 'def': return `def ${b.name}`;
     case 'set': case 'add': case 'sub': return `${b.kind} ${b.name} ${valueText(b.value)}`;
+    case 'send': return `send ${b.name}`;
+    case 'await': return `wait ${b.name}`;
     default: return '';
   }
 }
@@ -316,6 +320,13 @@ export function registerProblem(blocks, name) {
   return '';
 }
 
+/** Why `name` can't be a signal name ('' if fine). Signals have their own namespace. */
+export function signalProblem(_blocks, name) {
+  if (!IDENT.test(name)) return 'use lowercase letters, digits and _, starting with a letter';
+  if (RESERVED.includes(name)) return `'${name}' is a reserved word`;
+  return '';
+}
+
 /** A fresh name for a new function: fn, fn2, fn3, … */
 export function freshName(blocks, base = 'job') {
   const used = new Set(functionNames(blocks));
@@ -346,6 +357,10 @@ export function palette(tools = {}, blocks = []) {
     out.push({ id: 'set', label: 'set n V', group: 'memory', make: () => ({ kind: 'set', name: reg(), value: { type: 'num', value: 0 } }) });
     out.push({ id: 'add', label: 'add n V', group: 'memory', make: () => ({ kind: 'add', name: reg(), value: { type: 'num', value: 1 } }) });
     out.push({ id: 'sub', label: 'sub n V', group: 'memory', make: () => ({ kind: 'sub', name: reg(), value: { type: 'num', value: 1 } }) });
+  }
+  if (allow('blocks', 'signal')) {
+    out.push({ id: 'send', label: 'send S', group: 'signal', make: () => ({ kind: 'send', name: 'go' }) });
+    out.push({ id: 'await', label: 'wait S', group: 'signal', make: () => ({ kind: 'await', name: 'go' }) });
   }
   if (allow('blocks', 'def')) {
     out.push({ id: 'def', label: 'def name', group: 'function', make: (bs) => ({ kind: 'def', name: freshName(bs), body: [] }) });

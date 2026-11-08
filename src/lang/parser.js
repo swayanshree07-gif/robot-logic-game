@@ -10,6 +10,9 @@
 //   def NAME ... end    (top level only)
 //   NAME                call a function
 //   set REG VAL   add REG VAL   sub REG VAL     memory registers (no tick)
+//   send NAME           raise signal NAME for the crew (no tick)
+//   wait NAME           block until a signal NAME is pending, then use it up
+//                       (plain `wait` with no name is still the idle action)
 //
 // COND := OR ;  OR := AND ('or' AND)* ; AND := NOT ('and' NOT)* ;
 // NOT := 'not' NOT | '(' OR ')' | 'true' | 'false' | SENSOR | VAL CMP VAL
@@ -31,12 +34,14 @@ export const SENSORS = [
   'goal', 'item', 'holding', 'bin',             // tile / gripper
   'red', 'yellow', 'blue',                      // floor colour under Pip
   'scan',                                       // path planner: ahead is closer to the target
+  'signal',                                     // crews: some signal is pending
 ];
+export const SIGNAL_OPS = ['send', 'wait']; // `wait NAME`; plain `wait` is an action
 export const MEMORY_OPS = ['set', 'add', 'sub'];
 export const COMPARE_OPS = ['==', '!=', '<', '>', '<=', '>='];
 const BLOCK_WORDS = ['repeat', 'while', 'if', 'elif', 'else', 'end', 'def'];
 const KEYWORDS = [...BLOCK_WORDS, 'and', 'or', 'not', 'true', 'false', 'times'];
-export const RESERVED = [...KEYWORDS, ...ACTIONS, ...SENSORS, ...MEMORY_OPS];
+export const RESERVED = [...new Set([...KEYWORDS, ...ACTIONS, ...SENSORS, ...MEMORY_OPS, ...SIGNAL_OPS])];
 export const MAX_REPEAT = 999;
 export const MAX_MOVE = 99;
 export const MAX_VALUE = 999; // registers hold -MAX_VALUE..MAX_VALUE
@@ -348,6 +353,17 @@ export function parse(source) {
         const node = { type: 'memory', op: h, name, value: val.node, ...pos, nameCol: nameTok.col, len: nameTok.len };
         body().push(node);
         writes.push(node);
+        return;
+      }
+      case 'send': case 'wait': {
+        if (h === 'wait' && (!rest.length || /^\d/.test(rest[0].v) || rest[0].v === '(')) break; // idle action
+        const nameTok = rest[0];
+        if (!nameTok) throw err("'send' needs a signal name", line, { col: head.col + head.len + 1, len: 1 }, "for example 'send ready'");
+        const name = nameTok.v;
+        if (RESERVED.includes(name)) throw err(`'${name}' is a reserved word`, line, nameTok, 'pick another signal name');
+        if (!IDENT.test(name)) throw err(`'${nameTok.raw}' can't be a signal name`, line, nameTok, 'use letters, digits and _, starting with a letter');
+        if (rest[1]) throw err(`unexpected '${rest[1].raw}' after the signal name`, line, rest[1], 'one signal per line');
+        body().push({ type: 'signal', op: h, name, ...pos, nameCol: nameTok.col, len: nameTok.len });
         return;
       }
       default:

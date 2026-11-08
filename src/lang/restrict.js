@@ -4,7 +4,8 @@
 // tools = { actions?: string[], sensors?: string[], blocks?: string[] }
 // A missing list means "everything of that kind is allowed".
 // blocks: 'repeat', 'while', 'if' (covers elif/else), 'def' (covers calls),
-//         'memory' (covers set/add/sub and comparisons in conditions).
+//         'memory' (covers set/add/sub and comparisons in conditions),
+//         'signal' (covers `send NAME` and `wait NAME`; the `signal` sensor is a sensor).
 import { CogError } from './errors.js';
 
 const lockedErr = (what, word, node, hint) => {
@@ -53,6 +54,9 @@ export function checkTools(ast, tools) {
           break;
         case 'memory':
           if (!allowed('blocks', 'memory')) found.push(lockedErr('command', s.op, { ...s, len: s.op.length }, 'memory registers are not unlocked on this level'));
+          break;
+        case 'signal':
+          if (!allowed('blocks', 'signal')) found.push(lockedErr('command', s.op, { ...s, len: s.op.length }, 'signals are not unlocked on this level'));
           break;
         case 'call':
           if (!allowed('blocks', 'def')) found.push(lockedErr('block', 'def', s, 'functions are not unlocked on this level'));

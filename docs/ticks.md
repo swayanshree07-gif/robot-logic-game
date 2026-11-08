@@ -52,3 +52,21 @@ runs its own Cog program. One tick = one **round**:
 A robot whose program ends stands still; the run fails once all programs have ended.
 The battery (`maxSteps`) counts rounds. Loop detection covers the world plus all VMs.
 One-robot levels still use `Runner` and are unchanged.
+
+## Signals (Day 17)
+
+`send NAME` adds one pending NAME signal to a pool shared by the crew; it takes no
+step. `wait NAME` uses one up and carries on in the same round, or, if none is
+pending, ends that robot's turn for the round (it stands still; its battery is not
+used) and tries again next round. Because robots act in number order, a signal sent
+by robot 1 is seen by robot 2 in the same round, but one sent by robot 2 is seen by
+robot 1 only next round. The `signal` sensor is true while any signal is pending and
+does not use it up. A one-robot run that reaches a signal stops with error code
+`signal`.
+
+Deadlock: after the factory tick, if every robot that is still running was blocked
+this round and the floor's state did not change in the round (no belt moved
+anything), nothing can ever change again; the run ends with result `deadlock`
+naming who waits for what (and which robots already finished). While belts still
+move things, the check waits. `lintCrew` warns before a run about waits nobody
+sends and sends nobody waits for.
