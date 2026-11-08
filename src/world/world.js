@@ -14,6 +14,8 @@
 // parts, one tile each; 2) doors open iff some plate holds Pip or a part (an
 // occupied door stays jammed open); 3) win rules are checked by the runner.
 
+import { scanAhead } from './paths.js';
+
 export const DIRS = [
   { name: 'N', dx: 0, dy: -1 },
   { name: 'E', dx: 1, dy: 0 },
@@ -184,6 +186,7 @@ export class World {
       case 'holding': return r.holding > 0;
       case 'bin': return this.tile(r.x, r.y) === 'bin';
       case 'red': case 'yellow': case 'blue': return this.paint[r.y][r.x] === name;
+      case 'scan': return scanAhead(this);
       default: throw new Error(`unknown sensor ${name}`);
     }
   }

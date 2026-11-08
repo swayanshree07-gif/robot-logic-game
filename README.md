@@ -160,7 +160,9 @@ hop
 ```
 Sensors: `clear`, `wall`, `clear_left`, `clear_right` (range finders), `goal`,
 `item`, `holding`, `bin` (tile / gripper), `red`, `yellow`, `blue` (floor colour
-under Pip). Combine with `not`, `and`, `or`, parentheses.
+under Pip), `scan` (path planner: true when the tile ahead is one step
+closer, by shortest path, to the current target — a bin while holding a part,
+else the nearest part, else a goal pad; locked until World 4). Combine with `not`, `and`, `or`, parentheses.
 
 Mistakes get a friendly message with line, column and a caret, plus a hint:
 ```
@@ -261,7 +263,8 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 - `src/game/score.js` — par comparison and stars
 - `src/game/save.js` — versioned save (`SaveStore`, legacy import, `MemoryStorage`
   fake for tests); `src/game/progress.js` — map model, unlock rule, Continue target
-- `src/world/` — grid world: map format, sensors, actions, win rules
+- `src/world/` — grid world: map format, sensors, actions, win rules;
+  `paths.js` — BFS distance fields, A* routes over poses (turns cost 1), `scan`
 - `src/game/` — level data by world (each with a tested solution), BFS
   `solver.js` (fewest-action wins), `Runner` (world + VM,
   win check, step budget, infinite-loop detection) and `PlaySession`
@@ -278,7 +281,7 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
-Day 13 of 30 (milestones through Day 15 done): language core with friendly
+Day 14 of 30 (milestones through Day 16 done): language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1
 with validation, per-level unlocked commands, reach/collect/deliver win rules
 and test floors; World 1 (8 levels), World 2 (8 sensor levels) and World 3
@@ -290,5 +293,6 @@ code-drawn pixel art with tweened animation; synthesized sound with saved
 mute/volume; a step debugger with breakpoints, step over / out, call-stack,
 function and memory panels; lint warnings; memory registers; a BFS solver; a
 level report script; factory mechanics (conveyor belts, pressure plates,
-doors, documented tick order) with a dev test rig (`?id=proto-10`). 194
-automated tests. Next: Day 16, BFS/A* path-planning module.
+doors, documented tick order) with a dev test rig (`?id=proto-10`); a
+path-planning module (BFS distance field + A*) behind the new `scan` sensor.
+201 automated tests. Next: Day 17, World 4 "Maze Wing" levels.

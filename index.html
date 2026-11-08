@@ -113,6 +113,8 @@ compare: n == 3  n != k  < > <= >=   (in conditions)
 sensors: clear wall clear_left clear_right
          goal item holding bin
          red yellow blue   (floor colour)
+         scan   (ahead is a shortest-path step to
+                 bin if holding, else a part, else pad)
 combine: not  and  or  ( )
 
 keys: Ctrl+Enter run/pause · Ctrl+Shift+Enter step

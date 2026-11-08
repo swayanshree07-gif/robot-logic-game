@@ -1,6 +1,7 @@
 // Breadth-first search over world states: the fewest actions that win a level.
 // Used by the tests to prove step budgets ("battery") are fair and tight, and
-// later for hints and level-editor verification (PLAN Day 16 extends this).
+// for level-editor verification. Grid-only route planning (A*, the `scan`
+// sensor) lives in src/world/paths.js.
 //
 // The search runs the real World rules (no separate model to drift), cloning
 // the world for each branch. `wait` matters once belts or doors move things (a still world just repeats a seen state).

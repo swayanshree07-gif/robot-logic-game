@@ -30,6 +30,7 @@ export const SENSORS = [
   'clear', 'wall', 'clear_left', 'clear_right', // range finders
   'goal', 'item', 'holding', 'bin',             // tile / gripper
   'red', 'yellow', 'blue',                      // floor colour under Pip
+  'scan',                                       // path planner: ahead is closer to the target
 ];
 export const MEMORY_OPS = ['set', 'add', 'sub'];
 export const COMPARE_OPS = ['==', '!=', '<', '>', '<=', '>='];
