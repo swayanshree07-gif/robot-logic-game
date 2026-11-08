@@ -59,6 +59,10 @@
           <h4>Repeat blocks</h4>
           <ul id="dbg-loops"></ul>
         </div>
+        <div class="dbg-col">
+          <h4>Memory</h4>
+          <ul id="dbg-regs"></ul>
+        </div>
         <p id="dbg-break" class="brk"></p>
       </div>
       <pre id="status" class="status" role="status">Ready.</pre>
@@ -104,6 +108,8 @@ repeat N … end
 while COND … end
 if COND … elif COND … else … end
 def name … end      name   (call)
+set n 3   add n 1   sub n k   (memory, 0 to start)
+compare: n == 3  n != k  < > <= >=   (in conditions)
 sensors: clear wall clear_left clear_right
          goal item holding bin
          red yellow blue   (floor colour)

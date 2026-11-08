@@ -3,7 +3,8 @@
 //
 // tools = { actions?: string[], sensors?: string[], blocks?: string[] }
 // A missing list means "everything of that kind is allowed".
-// blocks: 'repeat', 'while', 'if' (covers elif/else), 'def' (covers calls).
+// blocks: 'repeat', 'while', 'if' (covers elif/else), 'def' (covers calls),
+//         'memory' (covers set/add/sub and comparisons in conditions).
 import { CogError } from './errors.js';
 
 const lockedErr = (what, word, node, hint) => {
@@ -23,6 +24,9 @@ export function checkTools(ast, tools) {
   const cond = (c, line) => {
     if (c.type === 'not') return cond(c.arg, line);
     if (c.type === 'and' || c.type === 'or') { cond(c.left, line); cond(c.right, line); return; }
+    if (c.type === 'cmp' && !allowed('blocks', 'memory')) {
+      found.push(lockedErr('comparison', c.op, { line, col: c.col, len: c.op.length }, 'memory registers are not unlocked on this level'));
+    }
     if (c.type === 'sensor' && !allowed('sensors', c.name)) {
       found.push(lockedErr('sensor', c.name, { line, col: c.col }, listHint('sensors')));
     }
@@ -46,6 +50,9 @@ export function checkTools(ast, tools) {
           if (!allowed('blocks', 'if')) found.push(lockedErr('block', 'if', s, listHint('blocks')));
           for (const br of s.branches) { cond(br.cond, br.line); block(br.body); }
           if (s.elseBody) block(s.elseBody);
+          break;
+        case 'memory':
+          if (!allowed('blocks', 'memory')) found.push(lockedErr('command', s.op, { ...s, len: s.op.length }, 'memory registers are not unlocked on this level'));
           break;
         case 'call':
           if (!allowed('blocks', 'def')) found.push(lockedErr('block', 'def', s, 'functions are not unlocked on this level'));

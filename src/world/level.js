@@ -30,7 +30,7 @@ import { DEFAULT_MAX_TICKS } from '../lang/vm.js';
 
 export const LEVEL_FORMAT = 1;
 export const WIN_TYPES = ['reach', 'collect', 'deliver'];
-export const BLOCKS = ['repeat', 'while', 'if', 'def'];
+export const BLOCKS = ['repeat', 'while', 'if', 'def', 'memory'];
 export const MAX_CAPACITY = 9;
 export const MAX_STEPS_LIMIT = 10000;
 export const MAX_FLOORS = 5;

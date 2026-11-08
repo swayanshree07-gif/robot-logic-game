@@ -8,6 +8,7 @@
 //   { kind: 'while', cond, body: [...] }              cond = parser condition AST
 //   { kind: 'if', branches: [{ cond, body }], elseBody: [...] | null }
 //   { kind: 'def', name: 'hop', body: [...] }
+//   { kind: 'set' | 'add' | 'sub', name: 'n', value }  value = { type: 'num', value } | { type: 'reg', name }
 //   { kind: 'note', text: ' a comment line' }         full-line `#` comment
 //   { kind: 'blank' }                                  empty line
 // Any line-like part may carry `comment` (text after a trailing `#`):
@@ -18,9 +19,9 @@
 // comment, `repeat N times` -> `repeat N`, `move 1` -> `move`, redundant
 // parentheses, trailing blank lines). Comments, blank lines, statement order
 // and meaning are kept exactly; format(format(s)) === format(s).
-import { parse, parseCondition, ACTIONS, SENSORS, RESERVED, MAX_REPEAT, MAX_MOVE } from './parser.js';
+import { parse, parseCondition, parseValue, ACTIONS, SENSORS, RESERVED, MAX_REPEAT, MAX_MOVE, MEMORY_OPS } from './parser.js';
 
-export { parseCondition };
+export { parseCondition, parseValue };
 const IDENT = /^[a-z_][a-z0-9_]*$/;
 export const INDENT = '  ';
 
@@ -86,6 +87,7 @@ export function toBlocks(source) {
       case 'while': b = { kind: 'while', cond: node.cond, body: [] }; break;
       case 'if': b = { kind: 'if', branches: [{ cond: node.branches[0].cond, body: [] }], elseBody: null }; break;
       case 'def': b = { kind: 'def', name: node.name, body: [] }; break;
+      case 'memory': b = { kind: node.op, name: node.name, value: node.value }; break;
       default: throw new Error(`blocks: unexpected node ${node.type} on line ${line}`);
     }
     b = withComment(b);
@@ -97,12 +99,12 @@ export function toBlocks(source) {
   return stripCols(root);
 }
 
-/** Condition ASTs from the parser carry `col`; blocks don't need positions. */
+/** Condition/value ASTs from the parser carry `col`/`len`; blocks don't need positions. */
 function stripCols(v) {
   if (Array.isArray(v)) return v.map(stripCols);
   if (v && typeof v === 'object') {
     const o = {};
-    for (const [k, x] of Object.entries(v)) if (k !== 'col') o[k] = stripCols(x);
+    for (const [k, x] of Object.entries(v)) if (k !== 'col' && k !== 'len') o[k] = stripCols(x);
     return o;
   }
   return v;
@@ -110,7 +112,10 @@ function stripCols(v) {
 
 // ---------- blocks -> text ----------
 
-const PREC = { or: 1, and: 2, not: 3, sensor: 4, const: 4 };
+const PREC = { or: 1, and: 2, not: 3, sensor: 4, const: 4, cmp: 4 };
+
+/** Register value AST -> text: '3', '-1' or a register name. */
+export const valueText = (v) => (v.type === 'num' ? String(v.value) : v.name);
 
 /** Condition AST -> Cog text with only the parentheses the parser needs. */
 export function condText(c, min = 0) {
@@ -121,6 +126,7 @@ export function condText(c, min = 0) {
     case 'not': s = `not ${condText(c.arg, 3)}`; break;
     case 'sensor': s = c.name; break;
     case 'const': s = c.value ? 'true' : 'false'; break;
+    case 'cmp': s = `${valueText(c.left)} ${c.op} ${valueText(c.right)}`; break;
     default: throw new Error(`blocks: unknown condition ${c.type}`);
   }
   return PREC[c.type] < min ? `(${s})` : s;
@@ -135,6 +141,7 @@ export function headerText(b) {
     case 'while': return `while ${condText(b.cond)}`;
     case 'if': return `if ${condText(b.branches[0].cond)}`;
     case 'def': return `def ${b.name}`;
+    case 'set': case 'add': case 'sub': return `${b.kind} ${b.name} ${valueText(b.value)}`;
     default: return '';
   }
 }
@@ -286,6 +293,29 @@ export function renameFunction(blocks, from, to) {
   return walk(clone(blocks));
 }
 
+/** Register names written anywhere in the program, in first-use order. */
+export function registerNames(blocks) {
+  const out = [];
+  const walk = (list) => {
+    for (const b of list) {
+      if (MEMORY_OPS.includes(b.kind) && !out.includes(b.name)) out.push(b.name);
+      if (b.body) walk(b.body);
+      if (b.branches) b.branches.forEach((br) => walk(br.body));
+      if (b.elseBody) walk(b.elseBody);
+    }
+  };
+  walk(blocks);
+  return out;
+}
+
+/** Why `name` can't be a register name ('' if fine). */
+export function registerProblem(blocks, name) {
+  if (!IDENT.test(name)) return 'use lowercase letters, digits and _, starting with a letter';
+  if (RESERVED.includes(name)) return `'${name}' is a reserved word`;
+  if (functionNames(blocks).includes(name)) return `'${name}' is a function name`;
+  return '';
+}
+
 /** A fresh name for a new function: fn, fn2, fn3, … */
 export function freshName(blocks, base = 'job') {
   const used = new Set(functionNames(blocks));
@@ -311,6 +341,12 @@ export function palette(tools = {}, blocks = []) {
   if (allow('blocks', 'repeat')) out.push({ id: 'repeat', label: 'repeat N', group: 'loop', make: () => ({ kind: 'repeat', count: 2, body: [] }) });
   if (allow('blocks', 'while')) out.push({ id: 'while', label: 'while …', group: 'loop', make: () => ({ kind: 'while', cond: cond(), body: [] }) });
   if (allow('blocks', 'if')) out.push({ id: 'if', label: 'if …', group: 'branch', make: () => ({ kind: 'if', branches: [{ cond: cond(), body: [] }], elseBody: null }) });
+  if (allow('blocks', 'memory')) {
+    const reg = () => registerNames(blocks)[0] || 'n';
+    out.push({ id: 'set', label: 'set n V', group: 'memory', make: () => ({ kind: 'set', name: reg(), value: { type: 'num', value: 0 } }) });
+    out.push({ id: 'add', label: 'add n V', group: 'memory', make: () => ({ kind: 'add', name: reg(), value: { type: 'num', value: 1 } }) });
+    out.push({ id: 'sub', label: 'sub n V', group: 'memory', make: () => ({ kind: 'sub', name: reg(), value: { type: 'num', value: 1 } }) });
+  }
   if (allow('blocks', 'def')) {
     out.push({ id: 'def', label: 'def name', group: 'function', make: (bs) => ({ kind: 'def', name: freshName(bs), body: [] }) });
     for (const name of functionNames(blocks)) {

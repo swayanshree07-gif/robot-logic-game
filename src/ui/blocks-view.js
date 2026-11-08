@@ -9,6 +9,7 @@
 import {
   render as renderText, palette, insertBlock, removeBlock, updateBlock, moveBlock, addBranch, removeBranch,
   renameFunction, nameProblem, clampCount, condText, parseCondition, getAt, placementProblem,
+  valueText, parseValue, registerProblem,
 } from '../lang/blocks.js';
 
 const MIME_PATH = 'application/x-cog-path';
@@ -247,6 +248,9 @@ export class BlockEditor {
         return updateBlock(this.blocks, path, { branches });
       })); break;
       case 'def': h.append(el('span', 'kw', 'def'), this.defName(b)); break;
+      case 'set': case 'add': case 'sub':
+        h.append(el('span', 'kw', b.kind), this.regName(b, path), this.valueField(b, path));
+        break;
       case 'note': h.append(this.text(b.text, 'note', (text) => updateBlock(this.blocks, path, { text }))); break;
       case 'blank': h.append(el('span', 'dim', 'blank line')); break;
       default: break;
@@ -331,6 +335,45 @@ export class BlockEditor {
       const p = nameProblem(this.blocks, name, b.name);
       if (p) { this.onProblem(`Function name: ${p}`); return; }
       if (name !== b.name) this.commit(renameFunction(this.blocks, b.name, name));
+    };
+    return i;
+  }
+
+  regName(b, path) {
+    const i = el('input', 'name');
+    i.value = b.name;
+    i.spellcheck = false;
+    i.setAttribute('aria-label', 'Register name');
+    i.size = Math.max(3, b.name.length + 1);
+    i.oninput = () => {
+      const p = registerProblem(this.blocks, i.value.trim().toLowerCase());
+      i.classList.toggle('invalid', Boolean(p));
+      i.title = p;
+    };
+    i.onchange = () => {
+      const name = i.value.trim().toLowerCase();
+      const p = registerProblem(this.blocks, name);
+      if (p) { this.onProblem(`Register name: ${p}`); return; }
+      if (name !== b.name) this.commit(updateBlock(this.blocks, path, { name }));
+    };
+    return i;
+  }
+
+  valueField(b, path) {
+    const i = el('input', 'cond');
+    i.value = valueText(b.value);
+    i.spellcheck = false;
+    i.setAttribute('aria-label', 'Value (number or register)');
+    i.size = Math.max(3, i.value.length + 1);
+    const check = () => {
+      try { const v = parseValue(i.value); i.classList.remove('invalid'); i.title = ''; return v; }
+      catch (e) { i.classList.add('invalid'); i.title = e.message.replace(/^Line 1, /, ''); return null; }
+    };
+    i.oninput = () => { i.size = Math.max(3, i.value.length + 1); check(); };
+    i.onchange = () => {
+      const v = check();
+      if (!v) { this.onProblem(`Value: ${i.title}`); return; }
+      if (valueText(v) !== valueText(b.value)) this.commit(updateBlock(this.blocks, path, { value: v }));
     };
     return i;
   }

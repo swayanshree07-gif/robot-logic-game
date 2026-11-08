@@ -6,6 +6,7 @@
 //                  called from functions that never run)
 //     'empty'      a block or function with nothing inside
 //     'repeat1'    `repeat 1` runs its body just once
+//     'unread'     a register is written but never read (in a condition or as a value)
 import { CogError } from './errors.js';
 import { parse } from './parser.js';
 
@@ -19,8 +20,21 @@ export function lint(ast) {
   const out = [];
   const callers = new Map(Object.keys(ast.functions).map((n) => [n, new Set()]));
 
+  const read = new Set();
+  const firstWrite = new Map();
+  const condRegs = (c) => {
+    if (!c) return;
+    if (c.type === 'cmp') for (const o of [c.left, c.right]) { if (o.type === 'reg') read.add(o.name); }
+    condRegs(c.arg); condRegs(c.left); condRegs(c.right);
+  };
   const walk = (stmts, owner) => {
     for (const s of stmts) {
+      if (s.type === 'memory') {
+        if (!firstWrite.has(s.name)) firstWrite.set(s.name, s);
+        if (s.value.type === 'reg') read.add(s.value.name);
+      }
+      if (s.cond) condRegs(s.cond);
+      if (s.branches) s.branches.forEach((b) => condRegs(b.cond));
       if (s.type === 'call') callers.get(s.name)?.add(owner);
       if (s.type === 'repeat') {
         if (s.count === 1) out.push(warn('repeat1', "'repeat 1' runs its body just once", s, 6, 'the repeat can go'));
@@ -44,6 +58,13 @@ export function lint(ast) {
   for (const [name, fn] of Object.entries(ast.functions)) {
     walk(fn.body, name);
     if (!fn.body.length) out.push(warn('empty', `function '${name}' is empty`, fn, name.length, 'calling it does nothing'));
+  }
+
+  for (const [name, s] of firstWrite) {
+    if (!read.has(name)) {
+      out.push(warn('unread', `register '${name}' is set but never read`, { line: s.line, col: s.nameCol }, name.length,
+        `compare it in a condition, e.g. 'if ${name} > 0'`));
+    }
   }
 
   // A function is used if something other than itself calls it, and that caller

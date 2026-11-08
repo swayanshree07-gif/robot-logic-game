@@ -99,7 +99,15 @@ the current function and pauses right after it returns. While a run is in
 progress the debugger panel lists the call stack (innermost first, with the
 line each function was called from) and every active `repeat` block with its
 line and pass ("pass 2 of 4"). Breakpoints are saved per level and still
-pause step over / step out.
+pause step over / step out. A Memory column lists the program's registers and
+their current values.
+
+**Memory (registers):** `set n 3`, `add n 1`, `sub n k` change a register
+(all start at 0, at most 8 per program, names can't clash with functions or
+keywords). Memory ops take no step. Conditions can compare: `n == 3`,
+`n != k`, `<`, `>`, `<=`, `>=`, combined with `not`/`and`/`or` and sensors.
+Levels unlock them with the `memory` block; lint warns about a register that
+is written but never read. They also appear as block-editor tiles.
 
 **Functions:** whenever the program has `def`s, a Functions panel under the
 editor lists each one with its line; click it to jump to the definition. During
@@ -256,7 +264,7 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
-Day 10 of 30 (milestones through Day 12 done): language core with friendly
+Day 11 of 30 (milestones through Day 13 done): language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1
 with validation, per-level unlocked commands, reach/collect/deliver win rules
 and test floors; World 1 (8 levels) and World 2 (8 sensor levels, 3 floors
@@ -267,5 +275,6 @@ Run/Pause/Step/Stop/Reset, speed, HUD, result banner and test-floor switcher;
 code-drawn pixel art with tweened animation; synthesized sound effects and
 ambient hum with saved mute/volume; a step debugger with breakpoints, step
 over / step out, call-stack / repeat-block and function panels; lint
-warnings; a BFS solver; a level report script. 160 automated tests. Next:
-Day 13, registers (`set`, `add`, comparisons) for state machines.
+warnings; memory registers (`set`/`add`/`sub`, comparisons) shown in the
+debugger; a BFS solver; a level report script. 172 automated tests. Next:
+Day 14, World 3 "Assembly Line" (functions, state machines).

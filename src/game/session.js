@@ -266,6 +266,8 @@ export class PlaySession {
       // debugger panel: [{name, line}] frames and [{line, total, pass}] repeat blocks, outermost first
       frames: ins ? ins.frames : [],
       loops: ins ? ins.loops : [],
+      // memory panel: [{name, value}] registers in first-use order (empty before a run)
+      registers: ins ? ins.registers : [],
       // function panel: [{name, line, calls, active}] in source order (calls 0 before a run)
       functions: ins ? ins.functions
         : this.analysis.defs.map((d) => ({ ...d, calls: 0, active: 0 })),

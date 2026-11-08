@@ -9,15 +9,21 @@
 //   'recursion' - more than maxCallDepth nested calls
 //   'idle'      - more than MAX_IDLE_OPS ops in a row without an action
 //   'steps'     - more than maxTicks actions (Pip's battery runs out)
+//   'overflow'  - a register would leave -MAX_VALUE..MAX_VALUE
 //   host codes  - e.g. 'bump' when an action fails
+//
+// Registers (set/add/sub, comparisons in conditions) live in the VM, start at
+// 0 and are part of stateKey(), so the run loop detector tells "counting" apart
+// from "stuck".
 
 import { CogError } from './errors.js';
+import { MAX_VALUE } from './parser.js';
 
 export const MAX_CALL_DEPTH = 64;
 export const MAX_IDLE_OPS = 10000; // ops in a row without an action => probably stuck
 export const DEFAULT_MAX_TICKS = 2000;
 
-const OP_WORD = { push: 'repeat', loop: 'repeat', jf: 'while' };
+const OP_WORD = { push: 'repeat', loop: 'repeat', jf: 'while' }; // mem ops use `kind`
 
 export class VM {
   /** @param {{code: object[]}} program  @param {object} host  @param {{maxTicks?, maxCallDepth?}} [opt] */
@@ -36,7 +42,17 @@ export class VM {
     this.error = null;
     this.ticks = 0; // actions performed
     this.opsExecuted = 0;
+    this.registerNames = program.registers || [];
+    this.regs = Object.create(null);
+    for (const r of this.registerNames) this.regs[r] = 0;
   }
+
+  /** Current register values in first-use order: [{ name, value }]. */
+  get registers() {
+    return this.registerNames.map((name) => ({ name, value: this.regs[name] }));
+  }
+
+  value(v) { return v.type === 'num' ? v.value : (this.regs[v.name] ?? 0); }
 
   get line() {
     const ins = this.code[this.pc];
@@ -50,7 +66,8 @@ export class VM {
 
   /** Compact string of everything that determines what the VM does next. */
   stateKey() {
-    return `${this.pc}|${this.counters.join(',')}|${this.calls.map((c) => c.ret).join(',')}`;
+    const regs = this.registerNames.length ? `|${this.registerNames.map((r) => this.regs[r]).join(',')}` : '';
+    return `${this.pc}|${this.counters.join(',')}|${this.calls.map((c) => c.ret).join(',')}${regs}`;
   }
 
   evalCond(c) {
@@ -60,6 +77,18 @@ export class VM {
       case 'and': return this.evalCond(c.left) && this.evalCond(c.right);
       case 'or': return this.evalCond(c.left) || this.evalCond(c.right);
       case 'sensor': return Boolean(this.host.sense(c.name));
+      case 'cmp': {
+        const a = this.value(c.left), b = this.value(c.right);
+        switch (c.op) {
+          case '==': return a === b;
+          case '!=': return a !== b;
+          case '<': return a < b;
+          case '>': return a > b;
+          case '<=': return a <= b;
+          case '>=': return a >= b;
+          default: throw new Error(`bad comparison ${c.op}`);
+        }
+      }
       default: throw new Error(`bad condition ${c.type}`);
     }
   }
@@ -67,7 +96,7 @@ export class VM {
   /** Stop with a runtime error pointing at instruction `ins` (or the current one). */
   fail(message, code, { ins = this.code[this.pc], hint = '' } = {}) {
     this.status = 'error';
-    const word = ins && (ins.name || OP_WORD[ins.op]);
+    const word = ins && (ins.op === 'mem' ? ins.kind : ins.name || OP_WORD[ins.op]);
     this.error = new CogError(message, ins ? ins.line : 0, {
       col: ins && ins.line ? ins.col || 0 : 0, length: word ? word.length : 1, hint, kind: 'runtime',
     });
@@ -116,6 +145,18 @@ export class VM {
         this.pc = ins.fn;
         break;
       case 'ret': this.pc = this.calls.pop().ret; break;
+      case 'mem': {
+        const v = this.value(ins.value);
+        const old = this.regs[ins.name] ?? 0;
+        const next = ins.kind === 'set' ? v : ins.kind === 'add' ? old + v : old - v;
+        if (Math.abs(next) > MAX_VALUE) {
+          return this.fail(`register '${ins.name}' would be ${next}, past the limit of ${next > 0 ? '' : '-'}${MAX_VALUE}`, 'overflow',
+            { hint: 'is a counter running away?' });
+        }
+        this.regs[ins.name] = next;
+        this.pc++;
+        break;
+      }
       case 'halt': this.status = 'halted'; return { type: 'halt' };
       default: throw new Error(`bad op ${ins.op}`);
     }
@@ -168,6 +209,7 @@ export class VM {
    *   loops:  [{ line, total, pass }]  each active repeat block: header line, count, current pass (1-based)
    *   functions: [{ name, line, calls, active }]  every def in source order: def line,
    *              calls started so far, and how many of its calls are running right now
+   *   registers: [{ name, value }]  every register in first-use order
    */
   inspect() {
     return {
@@ -177,6 +219,7 @@ export class VM {
         name: d.name, line: d.line, calls: this.callCounts[d.name] || 0,
         active: this.calls.filter((c) => c.name === d.name).length, // how many copies are running now
       })),
+      registers: this.registers,
     };
   }
 }

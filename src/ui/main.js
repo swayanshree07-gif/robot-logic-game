@@ -262,6 +262,9 @@ function renderDebugger(v) {
   $('dbg-loops').replaceChildren(...(loops.length
     ? loops.map((l, i) => li(`line ${l.line}: pass <b>${l.pass}</b> of ${l.total}`, i === 0 ? 'top' : ''))
     : [li('none running')]));
+  $('dbg-regs').replaceChildren(...(v.registers.length
+    ? v.registers.map((r) => li(`<b>${esc(r.name)}</b> = <span>${r.value}</span>`))
+    : [li('no registers')]));
   $('dbg-break').textContent = v.atBreak ? `● paused at breakpoint, line ${v.atBreak}` : '';
 }
 

@@ -186,9 +186,9 @@ Line 1, col 4: '!' is not part of Cog — write 'not' instead
    |    ^
 
 ### comparison
-Line 1, col 9: '==' is not part of Cog — conditions are just sensor names combined with not / and / or
+Line 1, col 4: sensor 'wall' can't be compared — sensors are just true or false: write 'if wall' or 'if not wall'
  1 | if wall == true
-   |         ^^
+   |    ^^^^
 
 ### two sensors without and
 Line 1, col 10: unexpected 'goal' in condition — join sensors with 'and' or 'or'
@@ -206,7 +206,7 @@ Line 1, col 12: unexpected ')' — there is no '(' for it to close
    |            ^
 
 ### number as condition
-Line 1, col 4: a number can't be a condition — sensors are: clear, wall, clear_left, clear_right, goal, item, holding, bin, red, yellow, blue
+Line 1, col 4: a number can't be a condition — compare it with a register, e.g. 'n == 1'
  1 | if 1
    |    ^
 
@@ -234,6 +234,81 @@ Line 1, col 8: unexpected '(' after function name — Cog functions take no para
 Line 4, col 4: unexpected '(' after 'hop' — call a function by its name alone, without brackets
  4 | hop()
    |    ^
+
+### register never set
+Line 2, col 7: register 'cuont' is never set — did you mean 'count'?
+ 2 | while cuont < 3
+   |       ^^^^^
+
+### register read with no set at all
+Line 1, col 4: register 'n' is never set — create it first with 'set n 0'
+ 1 | if n == 2
+   |    ^
+
+### set with =
+Line 1, col 7: 'set' doesn't use '=' — write 'set n 4'
+ 1 | set n = 4
+   |       ^
+
+### set without value
+Line 1, col 7: 'set n' needs a value — a number or a register, for example 'set n 0'
+ 1 | set n
+   |       ^
+
+### set without name
+Line 1, col 5: 'set' needs a register name — for example 'set n 0'
+ 1 | set
+   |     ^
+
+### set a reserved word
+Line 1, col 5: 'move' is a reserved word — pick another register name
+ 1 | set move 1
+   |     ^^^^
+
+### value too big
+Line 1, col 7: 1000 is too big for a register — values go from -999 to 999
+ 1 | set n 1000
+   |       ^^^^
+
+### arithmetic on one line
+Line 2, col 9: unexpected '+' after the value — do one add or sub per line
+ 2 | add n n + 1
+   |         ^
+
+### single = in condition
+Line 2, col 6: '=' is not part of Cog — compare with '=='
+ 2 | if n = 1
+   |      ^
+
+### flipped comparison
+Line 2, col 9: '=>' is not part of Cog — write '>=' instead
+ 2 | while n => 1
+   |         ^^
+
+### comparison missing right side
+Line 2, col 8: '<' needs a number or register on its right — for example 'n < 3'
+ 2 | if n <
+   |        ^
+
+### register used as command
+Line 2, col 1: unknown command or function 'n' — 'n' is a register; change it with set, add or sub
+ 2 | n
+   | ^
+
+### register and function share a name
+Line 4, col 5: 'hop' is already a function name — registers and functions need different names
+ 4 | set hop 1
+   |     ^^^
+
+### too many registers
+Line 9, col 5: Pip only has 8 memory registers — already used: a, b, c, d, e, f, g, h
+ 9 | set i 1
+   |     ^
+
+### runtime: register overflow
+[error] Line 3, col 3: register 'n' would be 1000, past the limit of 999 — is a counter running away?
+ 3 |   add n 5
+   |   ^^^
 
 ### runtime: bump into wall
 [error] Line 3, col 1: Pip bumped into a wall

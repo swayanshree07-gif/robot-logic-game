@@ -10,6 +10,8 @@
 //   { op:'call', fn, name }      call function at address fn
 //   { op:'ret' }                 return from function
 //   { op:'halt' }                end of main program
+//   { op:'mem', kind, name, value }  set/add/sub a register (no tick);
+//                                value = { type:'num', value } | { type:'reg', name }
 // Every op carries `line` (source line, 0 for synthetic ops) and, for real
 // statements, `col` (1-based column of the statement keyword).
 
@@ -57,6 +59,9 @@ export function compile(ast) {
         for (const e of exits) code[e].to = code.length;
         break;
       }
+      case 'memory':
+        emit({ op: 'mem', kind: s.op, name: s.name, value: s.value, line: s.line, col: s.col });
+        break;
       case 'call':
         callFixups.push(emit({ op: 'call', fn: -1, name: s.name, line: s.line, col: s.col }));
         break;
@@ -75,7 +80,7 @@ export function compile(ast) {
   for (const i of callFixups) code[i].fn = fnAddr[code[i].name];
   // defs: [{ name, line }] in source order, for the function panel
   const defs = Object.entries(ast.functions).map(([name, fn]) => ({ name, line: fn.line })).sort((a, b) => a.line - b.line);
-  return { code, functions: fnAddr, defs };
+  return { code, functions: fnAddr, defs, registers: [...(ast.registers || [])] };
 }
 
 /** Parse + compile. Throws CogError on bad source. */
