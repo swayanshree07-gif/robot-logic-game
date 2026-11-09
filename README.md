@@ -316,8 +316,10 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 
 ## Status
 
-Day 21 of 30 (plan rewritten on Day 16 for the owner's extended goals): medal
-scoring added on Day 21; all
+Day 22 of 30 (plan rewritten on Day 16 for the owner's extended goals): level
+editor model added on Day 22 (`src/game/level-editor.js`: pure reducer for
+tiles, robots/crews, rules, tools, test floors, undo/redo; UI comes on Day 23);
+medal scoring added on Day 21; all
 40 levels in 5 worlds are built; World 5 "Swarm Floor" has 8 crew levels
 (two- and three-robot). Earlier days:: language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1
@@ -339,6 +341,6 @@ shared belts/plates/doors; see `docs/ticks.md`) with **signals**
 blocks); crew levels in the level format (`solutions`, per-robot names and
 tools) and in the UI: every robot drawn with its number and colour, one
 editor tab per robot, a crew debugger panel (each robot's line, who waits for
-which signal, pending signals) and a Deadlock banner. 247 automated tests.
-Next: Day 21, medals scoring. Still planned: medals scoring,
-level editor with share codes, and an automated solver check of every level.
+which signal, pending signals) and a Deadlock banner. 262 automated tests.
+Next: Day 23, level editor UI + test-play. Still planned: share codes and an
+automated solver check of every level.
