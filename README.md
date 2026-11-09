@@ -246,6 +246,12 @@ Levels are grouped into worlds (`src/game/levels.js` → `WORLDS`, `LEVELS`).
   (scan + gripper), 4-8 Night Inventory (deliver all, then dock, 120-step
   battery). `test/world4.test.js` checks that the solver agrees on every floor
   and that the weaker strategy each level replaces really fails.
+- **World 5 "Swarm Floor"** (`src/game/worlds/w5.js`, 8 crew levels): two
+  robots (Pip, Bolt) in 5-1 Hold the Door, 5-2 Round Trip, 5-3 Bucket
+  Brigade, 5-4 Door Swap; three robots (plus Cog) in 5-5 Token Ring, 5-6
+  Doorstop (a part on a plate), 5-7 Relay Line (two hand-off tiles), 5-8
+  Night Shift. `test/world5.test.js` checks every floor wins at par, that
+  every robot is needed, and that signal-free versions fail.
 - The Day 1–4 prototypes are no longer in the level list; they stay in
   `PROTOTYPES` / `ALL_LEVELS` as test fixtures.
 
@@ -304,8 +310,9 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 
 ## Status
 
-- Day 19: World 5 "Swarm Floor" started: levels 5-1..5-4 (two-robot crews: plates, signals, hand-offs), tested in `test/world5.test.js`.
-Day 18 of 30 (plan rewritten on Day 16 for the owner's extended goals; Day 18 done): language core with friendly
+Day 20 of 30 (plan rewritten on Day 16 for the owner's extended goals): all
+40 levels in 5 worlds are built; World 5 "Swarm Floor" has 8 crew levels
+(two- and three-robot). Earlier days:: language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1
 with validation, per-level unlocked commands, reach/collect/deliver win rules
 and test floors; World 1 (8 levels), World 2 (8 sensor levels) World 3
@@ -325,6 +332,6 @@ shared belts/plates/doors; see `docs/ticks.md`) with **signals**
 blocks); crew levels in the level format (`solutions`, per-robot names and
 tools) and in the UI: every robot drawn with its number and colour, one
 editor tab per robot, a crew debugger panel (each robot's line, who waits for
-which signal, pending signals) and a Deadlock banner. 243 automated tests.
-Next: Day 19, World 5 crew levels. Still planned: medals scoring,
+which signal, pending signals) and a Deadlock banner. 247 automated tests.
+Next: Day 21, medals scoring. Still planned: medals scoring,
 level editor with share codes, and an automated solver check of every level.
