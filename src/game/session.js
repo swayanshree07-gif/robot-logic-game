@@ -34,7 +34,7 @@ import { Runner, runLevel, describeResult, DEFAULT_MAX_TICKS } from './run.js';
 import { CrewRunner, runCrew } from './crew.js';
 import { floorCount, floorLevel, levelCrew, robotName, MAX_CREW } from '../world/level.js';
 import { World } from '../world/world.js';
-import { scoreRun, parLine } from './score.js';
+import { scoreRun, parLine, medalText } from './score.js';
 import { analyze } from '../lang/lint.js';
 
 /** Speeds offered in the UI: ms between ticks (0 = as fast as possible). */
@@ -383,6 +383,7 @@ export function resultBanner(result, { hasNext = false } = {}) {
       return {
         kind: 'win', title: 'Job done!', text: result.message, next: hasNext,
         stars: sc ? sc.stars : 1, par: sc && (sc.steps.par !== null || sc.size.par !== null) ? parLine(sc) : '',
+        medals: sc ? medalText({ steps: sc.steps.medal, size: sc.size.medal }) : '',
       };
     }
     case 'fail': return result.floorFail !== undefined

@@ -1,6 +1,6 @@
 // World map / level select screen (DOM). The model comes from src/game/progress.js;
 // this file only builds elements (textContent only, never innerHTML).
-import { starText } from '../game/score.js';
+import { starText, medalText } from '../game/score.js';
 
 const el = (tag, cls, text) => {
   const e = document.createElement(tag);
@@ -41,7 +41,7 @@ export function renderMap(root, model, sum, opts) {
         const b = el('button', `tile${l.won ? ' won' : ''}${l.current ? ' current' : ''}`);
         b.type = 'button';
         b.disabled = !l.open;
-        b.title = l.open ? `${l.label} ${l.name}${l.won ? ` — ${starText(l.stars)}` : ''}` : `${l.label} is locked`;
+        b.title = l.open ? `${l.label} ${l.name}${l.won ? ` — ${starText(l.stars)} ${medalText(l.medals)}` : ''}` : `${l.label} is locked`;
         b.setAttribute('aria-label', l.open ? `${l.label} ${l.name}, ${l.won ? `${l.stars} of 3 stars` : 'not solved'}` : `${l.label} locked`);
         b.append(el('span', 'tile-num', l.label), el('span', 'tile-name', l.open ? l.name : '🔒'),
           el('span', 'tile-stars', l.won ? starText(l.stars) : l.open ? 'new' : ''));

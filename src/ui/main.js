@@ -359,6 +359,7 @@ function showResult(result) {
   if (b.floor !== undefined) { $('banner-floor').textContent = `Watch floor ${b.floor + 1} ▶`; $('banner-floor').dataset.floor = String(b.floor); }
   $('banner-stars').textContent = b.stars ? starText(b.stars) : '';
   $('banner-par').textContent = b.par || '';
+  $('banner-medals').textContent = b.medals || '';
   if (result.result === 'win' && result.score) {
     const id = session.level.id;
     const { before, after } = save.recordRun(id, result.score);

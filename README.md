@@ -118,6 +118,12 @@ itself), empty blocks, `repeat 1`. Recursion works (e.g. `def go` / `if not
 goal` / `move` / `go`), up to 64 nested calls; past that the error names the
 function, or the pair of functions calling each other.
 
+**Medals:** besides stars, each win earns a medal for **steps** and one for
+**size**: 🥇 gold at or under par, 🥈 silver within 1.5× par, 🥉 bronze for any
+win. The best value of each is saved per level (old saves: a kept par star
+counts as gold, a plain win as bronze); medals show in the result banner and
+the map tile tooltip.
+
 **Par & stars:** each level has a par for **steps** (World 1: the fewest
 possible, found by the BFS solver; levels with test floors: the steps of the
 best *general* program on floor 1, never below the solver's optimum) and **size** (statements in the shortest
@@ -310,7 +316,8 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 
 ## Status
 
-Day 20 of 30 (plan rewritten on Day 16 for the owner's extended goals): all
+Day 21 of 30 (plan rewritten on Day 16 for the owner's extended goals): medal
+scoring added on Day 21; all
 40 levels in 5 worlds are built; World 5 "Swarm Floor" has 8 crew levels
 (two- and three-robot). Earlier days:: language core with friendly
 positioned errors, step limits and infinite-loop detection; level format v1

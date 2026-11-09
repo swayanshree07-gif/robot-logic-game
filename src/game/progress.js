@@ -37,6 +37,7 @@ export function mapModel(worlds, progress, { current = null, upcoming = UPCOMING
       return {
         index, id: l.id, name: l.name, label: `${wi + 1}-${n + 1}`,
         stars: progress.stars(l.id), won: progress.won(l.id), open: open[index], current: l.id === current,
+        medals: progress.medals ? progress.medals(l.id, l.par) : null,
       };
     });
     return {

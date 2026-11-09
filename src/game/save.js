@@ -19,7 +19,7 @@
 // game starts fresh; a save from a *newer* version is never overwritten (the store goes
 // read-only for the session); failed writes (quota, blocked storage) are reported in
 // `lastError`, never thrown.
-import { mergeBest, recordStars } from './score.js';
+import { mergeBest, recordStars, recordMedals } from './score.js';
 
 export const SAVE_VERSION = 1;
 export const SAVE_KEY = 'ferrolab.save';
@@ -42,6 +42,7 @@ export function sanitize(raw) {
       const rec = { won: Boolean(r.won), steps: Boolean(r.won && r.steps), size: Boolean(r.won && r.size) };
       const legacy = Math.min(3, Math.max(0, Math.floor(Number(r.legacy) || 0)));
       if (legacy) { rec.legacy = legacy; rec.won = true; }
+      for (const k of ['bestSteps', 'bestSize']) if (Number.isInteger(r[k]) && r[k] >= 0) rec[k] = r[k];
       if (rec.won) s.levels[id] = rec;
     }
   }
@@ -157,6 +158,8 @@ export class SaveStore {
   best(id) { return this.data.levels[id] || null; }
   stars(id) { return savedStars(this.best(id)); }
   won(id) { return Boolean(this.data.levels[id]?.won); }
+  /** Best medals { steps, size } for a level against its `par`. */
+  medals(id, par) { return recordMedals(this.best(id), par); }
 
   /** Merge a finished run's score; returns { before, after } star counts. */
   recordRun(id, score) {
