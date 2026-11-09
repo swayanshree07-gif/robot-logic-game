@@ -15,6 +15,7 @@ import { starText } from '../game/score.js';
 import { SaveStore } from '../game/save.js';
 import { mapModel, totals, continueIndex, isOpen } from '../game/progress.js';
 import { renderMap } from './map-view.js';
+import { createLab } from './lab-view.js';
 
 const $ = (id) => document.getElementById(id);
 const ctx = $('board').getContext('2d');
@@ -381,8 +382,10 @@ let screen = 'level';
 function showScreen(which) {
   screen = which;
   $('map').hidden = which !== 'map';
+  $('lab').hidden = which !== 'lab';
   $('level-screen').hidden = which !== 'level';
   $('open-map').setAttribute('aria-pressed', String(which === 'map'));
+  $('open-lab').setAttribute('aria-pressed', String(which === 'lab'));
 }
 
 const SAVE_NOTES = {
@@ -421,6 +424,14 @@ function levelLabel(i) {
   return place ? `${worldTag(place.world)}-${place.n} ${LEVELS[i].name}` : LEVELS[i].name;
 }
 
+let lab = null;
+function openLab() {
+  if (session && session.state === 'running') session.pause();
+  lab ??= createLab($('lab'), (() => { try { return window.localStorage; } catch { return null; } })());
+  showScreen('lab');
+  lab.show();
+}
+$('open-lab').onclick = () => (screen === 'lab' ? showScreen('level') : openLab());
 $('open-map').onclick = () => (screen === 'map' ? showScreen('level') : openMap());
 
 // --- controls ---
@@ -447,6 +458,10 @@ document.addEventListener('keydown', (e) => {
   if (screen === 'map') {
     if (e.key === 'Escape' || ((e.key === 'm' || e.key === 'M') && !typing)) { e.preventDefault(); showScreen('level'); }
     return; // level-screen shortcuts are off while the map is open
+  }
+  if (screen === 'lab') {
+    if (e.key === 'Escape' && !typing) { e.preventDefault(); showScreen('level'); }
+    return; // the Lab has its own keys (undo/redo)
   }
   if ((e.key === 'm' || e.key === 'M') && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); openMap(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -552,3 +567,4 @@ while (session.state === 'running' && session.speed.ms === 0) session.update(0);
 if (params.get('map') === '1' || !devStart) openMap();
 render(); drawBoard(performance.now(), 0); dirty = false; // first paint without waiting for a frame
 requestAnimationFrame(frame);
+if (location.hash === '#lab') openLab();

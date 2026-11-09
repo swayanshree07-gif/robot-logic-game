@@ -47,6 +47,15 @@ stays open. Worlds 3–5 are shown as "under construction" until they're built.
 **▦ Map** (or the M key, outside the editor) opens the map; Esc or M goes back.
 The Level picker in the top bar still jumps anywhere that is open.
 
+**✎ Lab** (or open `index.html#lab`) is the level editor: pick a palette tool
+(floor, wall, goal, part, bin, paints, belts, plate, door, robot — click a robot
+again to turn it), click or drag on the board, set name/brief/size/win rule/
+gripper/battery, add extra test floors, and write the known solution (one tab
+per robot for crews). Undo/Redo (Ctrl+Z / Ctrl+Y). **Test-play** runs the
+solution on every floor; **Share** only unlocks after a winning test-play since
+the last edit (share codes arrive on Day 24). **Save** keeps levels in a local
+library (`ferrolab.custom` in localStorage, up to 50). Esc returns to the game.
+
 Pick a level, write Pip's program, then **Run** (Ctrl+Enter; becomes Pause),
 **Step** one action at a time (Ctrl+Shift+Enter), **Stop** where it is, or
 **Reset** to the start (Esc). Speed goes from Slow to Instant and is remembered.
@@ -312,12 +321,17 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
   `code-mode.js`), world map (`map-view.js`), synthesized sound (`audio.js`:
   cue table, event → cue mapping, `Sound` engine with an injectable
   AudioContext) and page wiring
+- `src/game/level-editor.js` — editor reducer (undo/redo); `custom-levels.js` —
+  test-play gate + custom library; `lab-tools.js` — palette click → action;
+  `src/ui/lab-view.js` — the Lab screen
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
 
-Day 22 of 30 (plan rewritten on Day 16 for the owner's extended goals): level
-editor model added on Day 22 (`src/game/level-editor.js`: pure reducer for
+Day 23 of 30 (plan rewritten on Day 16 for the owner's extended goals): the
+**Lab** level editor screen with test-play gating and a saved custom-level
+library added on Day 23 (screenshot `docs/day23-lab.png`); level editor model
+added on Day 22 (`src/game/level-editor.js`: pure reducer for
 tiles, robots/crews, rules, tools, test floors, undo/redo; UI comes on Day 23);
 medal scoring added on Day 21; all
 40 levels in 5 worlds are built; World 5 "Swarm Floor" has 8 crew levels
