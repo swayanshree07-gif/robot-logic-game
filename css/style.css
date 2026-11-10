@@ -240,3 +240,4 @@ button.quiet { margin-left: auto; background: transparent; color: var(--dim); bo
 .lab-field textarea, #lab-solution { flex: none; background: var(--panel2); border: 1px solid #3a4058; border-radius: 4px; padding: 6px 8px; resize: vertical; white-space: pre-wrap; line-height: 1.4; }
 #lab-solution { white-space: pre; min-height: 12em; }
 .crew-tabs[hidden] { display: none; }
+#lab-code { width: 100%; box-sizing: border-box; font: 12px monospace; word-break: break-all; }

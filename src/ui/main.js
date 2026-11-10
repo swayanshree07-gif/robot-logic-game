@@ -567,4 +567,9 @@ while (session.state === 'running' && session.speed.ms === 0) session.update(0);
 if (params.get('map') === '1' || !devStart) openMap();
 render(); drawBoard(performance.now(), 0); dirty = false; // first paint without waiting for a frame
 requestAnimationFrame(frame);
-if (location.hash === '#lab') openLab();
+const sharedCode = new URLSearchParams(location.search).get('code');
+if (sharedCode) {
+  openLab();
+  lab.importCode(sharedCode);
+  history.replaceState(null, '', location.pathname + '#lab');
+} else if (location.hash === '#lab') openLab();

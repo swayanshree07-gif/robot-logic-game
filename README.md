@@ -53,7 +53,11 @@ again to turn it), click or drag on the board, set name/brief/size/win rule/
 gripper/battery, add extra test floors, and write the known solution (one tab
 per robot for crews). Undo/Redo (Ctrl+Z / Ctrl+Y). **Test-play** runs the
 solution on every floor; **Share** only unlocks after a winning test-play since
-the last edit (share codes arrive on Day 24). **Save** keeps levels in a local
+the last edit; it then makes a **share link** (`index.html?code=FL1.…`, also
+copied to the clipboard). Paste a code or link into the Share code box and
+press **Import** (or just open the link) to load it as a new draft; it is
+test-played at once. Codes are URL-safe base64 of the level JSON with a
+version (`FL1`) and an FNV-1a checksum (`src/game/share-code.js`). **Save** keeps levels in a local
 library (`ferrolab.custom` in localStorage, up to 50). Esc returns to the game.
 
 Pick a level, write Pip's program, then **Run** (Ctrl+Enter; becomes Pause),
@@ -328,7 +332,9 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 
 ## Status
 
-Day 23 of 30 (plan rewritten on Day 16 for the owner's extended goals): the
+Day 24 of 30 (plan rewritten on Day 16 for the owner's extended goals): share
+codes (encode/decode with version + checksum, Import box, `?code=` links;
+screenshot `docs/day24-import.png`) added on Day 24; the
 **Lab** level editor screen with test-play gating and a saved custom-level
 library added on Day 23 (screenshot `docs/day23-lab.png`); level editor model
 added on Day 22 (`src/game/level-editor.js`: pure reducer for
@@ -355,6 +361,5 @@ shared belts/plates/doors; see `docs/ticks.md`) with **signals**
 blocks); crew levels in the level format (`solutions`, per-robot names and
 tools) and in the UI: every robot drawn with its number and colour, one
 editor tab per robot, a crew debugger panel (each robot's line, who waits for
-which signal, pending signals) and a Deadlock banner. 262 automated tests.
-Next: Day 23, level editor UI + test-play. Still planned: share codes and an
-automated solver check of every level.
+which signal, pending signals) and a Deadlock banner. 278 automated tests.
+Next: Day 25, automated solver check of every level.

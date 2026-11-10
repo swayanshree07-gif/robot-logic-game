@@ -3,6 +3,7 @@
 // src/game/custom-levels.js; palette clicks map to actions in src/game/lab-tools.js.
 import { createEditor, blankLevel, editorReducer, editedMap, canUndo, canRedo, editorProblems, MAX_W, MAX_H, MIN_SIZE } from '../game/level-editor.js';
 import { testPlay, shareCheck, draftPrograms, CustomLibrary } from '../game/custom-levels.js';
+import { encodeLevel, decodeLevel, shareUrl } from '../game/share-code.js';
 import { LAB_TOOLS, toolAction, cellAt, winFromForm } from '../game/lab-tools.js';
 import { World, winRules } from '../world/world.js';
 import { MAX_CREW, robotName, floorCount, WIN_TYPES } from '../world/level.js';
@@ -52,6 +53,8 @@ export function createLab(root, storage) {
   const solution = h('textarea', { id: 'lab-solution', rows: 10, spellcheck: false, wrap: 'off' });
   solution.setAttribute('aria-label', 'Known solution program');
   const libList = h('ul', { id: 'lab-library', className: 'lab-library' });
+  const codeBox = h('textarea', { id: 'lab-code', rows: 3, spellcheck: false, placeholder: 'Share code (FL1.…) or a link with ?code=' });
+  codeBox.setAttribute('aria-label', 'Share code');
 
   const btn = (label, title, fn, cls = '') => {
     const b = h('button', { type: 'button', textContent: label, title, className: cls });
@@ -76,6 +79,8 @@ export function createLab(root, storage) {
       h('section', { className: 'lab-side' },
         form,
         h('h3', { textContent: 'Known solution' }), solTabs, solution,
+        h('h3', { textContent: 'Share code' }), codeBox,
+        h('div', { className: 'controls' }, btn('⇩ Import', 'Open the level in this code as a new draft', () => importCode(codeBox.value))),
         h('h3', { textContent: 'Your levels' }),
         h('div', { className: 'controls' }, btn('＋ New level', 'Start a new blank level', () => { state = freshDraft(); robot = 0; message = 'New level.'; render(); })),
         libList)),
@@ -151,9 +156,25 @@ export function createLab(root, storage) {
   }
   function onShare() {
     const c = shareCheck(state);
-    // Share codes arrive on Day 24; for now the gate itself is what is checked.
-    message = c.ok ? 'Ready to share. (Share codes are coming next.)' : c.reason;
+    if (!c.ok) { message = c.reason; render(); return; }
+    const code = encodeLevel(state.level);
+    const link = shareUrl(code, location.href);
+    codeBox.value = link;
+    codeBox.select();
+    message = `Share link made (${code.length} chars).`;
+    try { navigator.clipboard?.writeText(link).then(() => { message = 'Share link copied to the clipboard.'; render(); }, () => {}); } catch { /* clipboard optional */ }
     render();
+  }
+  /** Import a code as a new draft and test-play it right away. Returns true on success. */
+  function importCode(text) {
+    let level;
+    try { level = decodeLevel(text, { id: lib.nextId() }); } catch (e) { message = e.message; render(); return false; }
+    const r = testPlay(createEditor(level));
+    state = r.state;
+    robot = 0;
+    message = `Imported "${level.name}". ${r.ok ? 'Its solution wins — save it to keep it.' : r.message}`;
+    render();
+    return true;
   }
 
   // --- render ---
@@ -219,5 +240,5 @@ export function createLab(root, storage) {
     if (!lib.list().length) libList.append(h('li', { textContent: 'No saved levels yet.' }));
   }
 
-  return { show() { render(); } };
+  return { show() { render(); }, importCode };
 }
