@@ -190,7 +190,7 @@ export const WORLD4 = {
     },
     {
       id: 'w4-5',
-      par: { steps: 11, size: 17 },
+      par: { steps: 11, size: 16 },
       name: 'Hold the Heading',
       brief: 'Open floor with crates dumped in it, and the charging pads run along the east wall. Wall following just circles a crate here. Instead: head east; at a crate turn left and follow it with your right hand, counting turns (+1 right, -1 left). When the count is back to 0 you face east again: let go and carry on. The battery only lasts 20 steps, so no long detours along the outer wall.',
       hint: 'set t 0. Loop: if t == 0 (if clear move else left, sub t 1) else (right-hand step, with add t 1 on right and sub t 1 on left).',
@@ -227,7 +227,7 @@ export const WORLD4 = {
         ],
       ],
       solution: src(
-        'set t 0', 'while not goal', '  if t == 0', '    if clear', '      move', '    else', '      left', '      sub t 1', '    end',
+        'while not goal', '  if t == 0', '    if clear', '      move', '    else', '      left', '      sub t 1', '    end',
         '  elif clear_right', '    right', '    add t 1', '    move',
         '  elif clear', '    move', '  else', '    left', '    sub t 1', '  end', 'end'),
     },

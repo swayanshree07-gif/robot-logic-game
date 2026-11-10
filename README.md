@@ -20,6 +20,7 @@ Requires Node 18+.
 
 ```sh
 node --test test/                 # parser, VM, world, runner, debugger, errors, every level's solution, solver
+FUZZ_SEED=7 FUZZ_N=3000 node --test test/fuzz.test.js   # longer fuzz run with another seed
 node scripts/check-static.mjs     # browser files/imports exist and parse
 node scripts/verify-levels.mjs    # proves every level/floor solvable (BFS optimum, crew joint search; --quick ~15 s)
 node scripts/level-report.mjs     # per-world table: optimum, par, solution steps/size, battery, new commands (--md for Markdown)
@@ -345,7 +346,10 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 
 ## Status
 
-Day 26 of 30 (plan rewritten on Day 16 for the owner's extended goals): hints
+Day 27 of 30 (plan rewritten on Day 16 for the owner's extended goals): seeded
+fuzz tests (`test/fuzz.test.js`: parser, solo/crew runner, share codes, blocked/full
+storage) and a balance pass (7 size pars tightened; table in `docs/par-table.md`)
+added on Day 27; hints
 (text, then a solver-planned route on the board), world story intros/outros,
 colour-blind paint labels and focus rings added on Day 26, with a content lint
 test (screenshots `docs/day26-hint.png`, `docs/day26-story.png`); an
