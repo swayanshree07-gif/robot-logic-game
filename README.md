@@ -346,7 +346,11 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 
 ## Status
 
-Day 27 of 30 (plan rewritten on Day 16 for the owner's extended goals): seeded
+Day 28 of 30 (plan rewritten on Day 16 for the owner's extended goals): a
+⚙ Settings menu (sound, hum, R/Y/B letters, Reduce motion, Win confetti), win
+confetti (`src/game/fx.js`, seeded particles), a level slide-in and banner pop,
+and the program header naming the selected crew robot, added on Day 28
+(screenshots `docs/day28-settings.png`, `docs/day28-crew.png`); seeded
 fuzz tests (`test/fuzz.test.js`: parser, solo/crew runner, share codes, blocked/full
 storage) and a balance pass (7 size pars tightened; table in `docs/par-table.md`)
 added on Day 27; hints

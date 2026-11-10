@@ -16,6 +16,7 @@ import { SaveStore } from '../game/save.js';
 import { mapModel, totals, continueIndex, isOpen } from '../game/progress.js';
 import { renderMap } from './map-view.js';
 import { createLab } from './lab-view.js';
+import { burst, step as fxStep, alpha as fxAlpha } from '../game/fx.js';
 import { routeHint, trailTiles, hintTiers, hintMessage, storyBeats } from '../game/hints.js';
 
 const $ = (id) => document.getElementById(id);
@@ -109,6 +110,8 @@ function loadLevel(i, level = LEVELS[i]) {
   $('level-num').textContent = place ? `${worldTag(place.world)}-${place.n}` : String(i + 1);
   $('level-num').title = place ? place.world.name : '';
   $('level-name').textContent = level.name;
+  replayFade($('level-screen'));
+  stopConfetti();
   setRichText($('brief'), level.brief);
   const story = storyBeats(place);
   $('story').textContent = story.intro;
@@ -136,6 +139,7 @@ function showTools() {
   if (t.blocks.length) parts.push(`blocks: ${t.blocks.join(' ')}`);
   if (t.sensors.length) parts.push(`sensors: ${t.sensors.join(' ')}`);
   const who = session.crew > 1 ? `${robotName(session.level, session.robot)}: ` : '';
+  $('prog-owner').textContent = `${session.crew > 1 ? robotName(session.level, session.robot) : 'Pip'}'s`;
   $('tools').textContent = `${who}Unlocked — ${parts.join(' · ')}`;
 }
 
@@ -374,6 +378,7 @@ function showResult(result) {
   $('banner-stars').textContent = b.stars ? starText(b.stars) : '';
   $('banner-par').textContent = b.par || '';
   $('banner-medals').textContent = b.medals || '';
+  if (result.result === 'win') celebrate(b.stars || 0);
   if (result.result === 'win' && result.score) {
     const id = session.level.id;
     const { before, after } = save.recordRun(id, result.score);
@@ -617,3 +622,71 @@ if (sharedCode) {
   lab.importCode(sharedCode);
   history.replaceState(null, '', location.pathname + '#lab');
 } else if (location.hash === '#lab') openLab();
+
+// --- Day 28: motion settings, level fade-in, win confetti ---------------
+const motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+var reduceMotion = Boolean(save.setting('reduceMotion', motionQuery?.matches ?? false));
+var confettiOn = Boolean(save.setting('confetti', true));
+function applyMotion() {
+  document.body.classList.toggle('calm', reduceMotion);
+  $('reduce-motion').checked = reduceMotion;
+  $('confetti').checked = confettiOn;
+  $('confetti').disabled = reduceMotion;
+  if (reduceMotion) stopConfetti();
+}
+$('reduce-motion').onchange = () => { reduceMotion = $('reduce-motion').checked; save.setSetting('reduceMotion', reduceMotion); applyMotion(); };
+$('confetti').onchange = () => { confettiOn = $('confetti').checked; save.setSetting('confetti', confettiOn); };
+document.addEventListener('click', (e) => { // close the settings menu on outside click
+  const s = $('settings');
+  if (s.open && !s.contains(e.target)) s.open = false;
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('settings').open) { $('settings').open = false; } });
+
+function replayFade(el) {
+  if (reduceMotion) return;
+  el.classList.remove('fade-in');
+  void el.offsetWidth; // restart the CSS animation
+  el.classList.add('fade-in');
+}
+
+var particles = []; // var: hoisted, loadLevel() runs before this point
+var fxFrame = 0;
+var fxSeed = 1;
+function stopConfetti() {
+  particles = [];
+  if (fxFrame) cancelAnimationFrame(fxFrame);
+  fxFrame = 0;
+  const c = $('fx');
+  c.getContext('2d').clearRect(0, 0, c.width, c.height);
+}
+function celebrate(stars) {
+  if (reduceMotion || !confettiOn) return;
+  const c = $('fx');
+  const board = $('board');
+  if (c.width !== board.width || c.height !== board.height) { c.width = board.width; c.height = board.height; }
+  const medals = Math.max(0, stars - 1);
+  particles = [...burst(c.width * 0.3, c.height * 0.85, { seed: fxSeed++, medals }),
+    ...burst(c.width * 0.7, c.height * 0.85, { seed: fxSeed++, medals })];
+  if (fxFrame) return;
+  let last = performance.now();
+  const ctx = c.getContext('2d');
+  const tick = (now) => {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    particles = fxStep(particles, dt, c.height);
+    ctx.clearRect(0, 0, c.width, c.height);
+    for (const p of particles) {
+      ctx.save();
+      ctx.globalAlpha = fxAlpha(p);
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.colour;
+      ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+      ctx.restore();
+    }
+    fxFrame = particles.length ? requestAnimationFrame(tick) : 0;
+  };
+  fxFrame = requestAnimationFrame(tick);
+}
+applyMotion();
+if (params.get('settings') === '1') $('settings').open = true;

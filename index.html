@@ -11,12 +11,19 @@
     <h1>Night Shift at <span>Ferrolab</span></h1>
     <button id="open-map" type="button" class="map-btn" title="World map and level select (M)">▦ Map</button>
     <button id="open-lab" type="button" class="map-btn" title="Level editor (the Lab)" aria-pressed="false">✎ Lab</button>
-    <div class="sound" role="group" aria-label="Sound">
-      <label class="sound-hum" title="Letters on coloured floor tiles, for colour-blind players"><input id="cb-labels" type="checkbox"> R/Y/B</label>
-      <button id="sound-mute" type="button" class="sound-btn" aria-pressed="false" title="Mute / unmute sound">🔊</button>
-      <input id="sound-volume" type="range" min="0" max="100" step="5" aria-label="Volume" title="Volume">
-      <label class="sound-hum" title="Ambient factory hum"><input id="sound-hum" type="checkbox"> Hum</label>
-    </div>
+    <details class="settings" id="settings">
+      <summary title="Settings: sound, motion, colour labels">⚙ Settings</summary>
+      <div class="settings-panel sound" role="group" aria-label="Settings">
+        <div class="set-row"><span>Sound</span>
+          <button id="sound-mute" type="button" class="sound-btn" aria-pressed="false" title="Mute / unmute sound">🔊</button>
+          <input id="sound-volume" type="range" min="0" max="100" step="5" aria-label="Volume" title="Volume">
+        </div>
+        <label class="sound-hum" title="Ambient factory hum"><input id="sound-hum" type="checkbox"> Factory hum</label>
+        <label class="sound-hum" title="Letters on coloured floor tiles, for colour-blind players"><input id="cb-labels" type="checkbox"> R/Y/B letters on colour tiles</label>
+        <label class="sound-hum" title="Turn off confetti and screen transitions"><input id="reduce-motion" type="checkbox"> Reduce motion</label>
+        <label class="sound-hum" title="Confetti when a level is solved"><input id="confetti" type="checkbox"> Win confetti</label>
+      </div>
+    </details>
     <label class="picker">Level <select id="level-select"></select></label>
   </header>
   <main id="map" class="map-screen" hidden aria-label="World map"></main>
@@ -34,6 +41,7 @@
       <div id="floors" class="floors" role="group" aria-label="Test floor" hidden></div>
       <div class="board-wrap">
         <canvas id="board" width="640" height="400" aria-label="Factory floor"></canvas>
+        <canvas id="fx" class="fx" width="640" height="400" aria-hidden="true"></canvas>
         <div id="banner" class="banner" hidden role="alertdialog" aria-labelledby="banner-title">
           <div class="banner-card">
             <h3 id="banner-title"></h3>
@@ -78,7 +86,7 @@
     </section>
     <section class="code" aria-label="Program">
       <div class="code-head">
-        <label for="editor">Pip's program <small>(Cog)</small></label>
+        <label for="editor"><span id="prog-owner">Pip's</span> program <small>(Cog)</small></label>
         <span id="size" class="size"></span>
         <span class="mode-toggle" role="group" aria-label="Editor">
           <button id="mode-text" type="button" aria-pressed="true" title="Type the program as Cog text">Text</button>

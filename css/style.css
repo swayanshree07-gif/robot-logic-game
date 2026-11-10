@@ -244,3 +244,21 @@ button.quiet { margin-left: auto; background: transparent; color: var(--dim); bo
 #lab-solution { white-space: pre; min-height: 12em; }
 .crew-tabs[hidden] { display: none; }
 #lab-code { width: 100%; box-sizing: border-box; font: 12px monospace; word-break: break-all; }
+
+/* Day 28: settings menu, confetti overlay, transitions */
+.settings { position: relative; margin-right: 14px; }
+.settings summary { cursor: pointer; list-style: none; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: .85rem; }
+.settings summary::-webkit-details-marker { display: none; }
+.settings[open] summary { border-color: var(--accent); }
+.settings-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; flex-direction: column; align-items: stretch; gap: 8px; min-width: 230px; margin: 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; box-shadow: 0 10px 30px rgb(0 0 0 / .4); }
+.set-row { display: flex; align-items: center; gap: 6px; }
+.set-row > span { flex: 1; }
+.fx { position: absolute; inset: 0; width: 100%; height: auto; background: transparent; border-color: transparent; pointer-events: none; }
+.fade-in { animation: fadein .3s ease-out; }
+@keyframes fadein { from { transform: translateY(6px); } }
+.banner.win .banner-card { animation: pop .35s cubic-bezier(.2,1.6,.4,1); }
+@keyframes pop { from { transform: scale(.85); } }
+body.calm *, body.calm *::before, body.calm *::after { animation: none !important; transition: none !important; }
+@media (prefers-reduced-motion: reduce) { .fade-in, .banner.win .banner-card { animation: none; } }
+.controls { grid-template-columns: repeat(5, 1fr); }
