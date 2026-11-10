@@ -21,6 +21,7 @@ Requires Node 18+.
 ```sh
 node --test test/                 # parser, VM, world, runner, debugger, errors, every level's solution, solver
 node scripts/check-static.mjs     # browser files/imports exist and parse
+node scripts/verify-levels.mjs    # proves every level/floor solvable (BFS optimum, crew joint search; --quick ~15 s)
 node scripts/level-report.mjs     # per-world table: optimum, par, solution steps/size, battery, new commands (--md for Markdown)
 UPDATE_SNAPSHOTS=1 node --test test/errors.test.js   # regenerate error-message snapshots
 scripts/screenshots.sh            # headless-Firefox smoke shots -> .tmp/shots/ (optional)
@@ -332,7 +333,10 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 
 ## Status
 
-Day 24 of 30 (plan rewritten on Day 16 for the owner's extended goals): share
+Day 25 of 30 (plan rewritten on Day 16 for the owner's extended goals): an
+automated solver check (`src/game/verify.js`, `scripts/verify-levels.mjs`,
+joint-state crew BFS in `src/game/solver.js`) proves all 40 levels solvable on
+every test floor and that no par is below the optimum, added on Day 25; share
 codes (encode/decode with version + checksum, Import box, `?code=` links;
 screenshot `docs/day24-import.png`) added on Day 24; the
 **Lab** level editor screen with test-play gating and a saved custom-level

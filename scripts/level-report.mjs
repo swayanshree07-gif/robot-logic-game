@@ -18,7 +18,7 @@ for (const world of WORLDS) {
   const rows = [];
   const seen = new Set();
   world.levels.forEach((l, i) => {
-    // crews: no joint solver yet (Day 25), so 'opt' is '-' and par = the shipped programs
+    // crews: 'opt' is '-' here (joint search is slow; see scripts/verify-levels.mjs), par = the shipped programs
     const crew = levelCrew(l) > 1;
     const run = runSolution(l);
     const best = crew ? null : solve(l);

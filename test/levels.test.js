@@ -76,7 +76,7 @@ test('World 1 "Low Battery": battery equals the fewest possible steps, wasting a
 });
 
 test('solver: every playable level is solvable, never in more steps than the known solution', () => {
-  for (const lv of LEVELS.filter((l) => !l.solutions)) { // crews: joint solver on Day 25, world5.test.js for now
+  for (const lv of LEVELS.filter((l) => !l.solutions)) { // crews: joint solver in verify.test.js
     const best = solve(lv);
     assert.ok(best, `${lv.id} solvable`);
     assert.ok(best.steps <= runLevel(lv.solution, lv).ticks, lv.id);
