@@ -18,6 +18,7 @@ import { renderMap } from './map-view.js';
 import { createLab } from './lab-view.js';
 import { burst, step as fxStep, alpha as fxAlpha } from '../game/fx.js';
 import { routeHint, trailTiles, hintTiers, hintMessage, storyBeats } from '../game/hints.js';
+import { helpHtml } from '../game/help.js';
 
 const $ = (id) => document.getElementById(id);
 const ctx = $('board').getContext('2d');
@@ -690,3 +691,16 @@ function celebrate(stars) {
 }
 applyMotion();
 if (params.get('settings') === '1') $('settings').open = true;
+
+// --- Day 29: in-game help dialog (? button / ? key) ----------------------
+const helpDlg = $('help');
+$('help-body').innerHTML = helpHtml();
+const openHelp = () => { if (!helpDlg.open) helpDlg.showModal(); };
+$('open-help').onclick = openHelp;
+$('help-close').onclick = () => helpDlg.close();
+helpDlg.addEventListener('click', (e) => { if (e.target === helpDlg) helpDlg.close(); }); // backdrop click
+document.addEventListener('keydown', (e) => {
+  const typing = e.target instanceof HTMLElement && /^(TEXTAREA|INPUT|SELECT)$/.test(e.target.tagName);
+  if (e.key === '?' && !typing && !helpDlg.open) { e.preventDefault(); openHelp(); }
+});
+if (params.get('help') === '1') openHelp();

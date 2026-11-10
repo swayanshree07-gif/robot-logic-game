@@ -24,8 +24,15 @@
         <label class="sound-hum" title="Confetti when a level is solved"><input id="confetti" type="checkbox"> Win confetti</label>
       </div>
     </details>
+    <button id="open-help" type="button" class="map-btn" title="Cog commands and keys (?)">? Help</button>
     <label class="picker">Level <select id="level-select"></select></label>
   </header>
+  <dialog id="help" class="help-dialog" aria-labelledby="help-title">
+    <div class="help-head"><h2 id="help-title">Cog quick reference</h2>
+      <button id="help-close" type="button" class="map-btn" title="Close (Esc)">✕</button></div>
+    <div id="help-body" class="help-body"></div>
+    <p class="help-foot">One command per line, <code>#</code> starts a comment, words are case-insensitive. Full reference: <code>docs/cog-reference.md</code>.</p>
+  </dialog>
   <main id="map" class="map-screen" hidden aria-label="World map"></main>
   <main id="lab" class="map-screen lab-screen" hidden aria-label="Level editor"></main>
   <main id="level-screen" class="level-screen">

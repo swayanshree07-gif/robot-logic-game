@@ -2,11 +2,17 @@
 
 An original browser puzzle game. You program **Pip**, a small maintenance robot
 working the night shift in the Ferrolab robotics factory, using **Cog** — a tiny
-line-based command language — to solve grid puzzles. The planned game has 40
-levels in 5 worlds that each teach one robotics/CS idea (sequencing, sensing,
-loops, conditionals, functions, state machines, path planning, cooperation),
-plus a step debugger, level editor with share codes, sound and saved progress.
-See `PLAN.md` for the 30-day roadmap and `PROGRESS.md` for the daily log.
+line-based command language — to solve grid puzzles. It has 40 levels in 5
+worlds that each teach one robotics/CS idea (sequencing, sensing, loops,
+conditionals, functions, state machines, path planning, cooperation), a step
+debugger, a level editor (the Lab) with share codes, medals, hints, sound and
+saved progress. See `PLAN.md` for the 30-day roadmap and `PROGRESS.md` for the
+daily log.
+
+**Docs:** [Cog language reference](docs/cog-reference.md) ·
+[Level design guide](docs/level-design.md) · [Tick order](docs/ticks.md) ·
+[Par table](docs/par-table.md). In the game, **? Help** (or the `?` key)
+shows a quick reference of every command, sensor and key.
 
 ## Run it
 No build step, no dependencies. ES modules need to be served over HTTP:
@@ -22,6 +28,7 @@ Requires Node 18+.
 node --test test/                 # parser, VM, world, runner, debugger, errors, every level's solution, solver
 FUZZ_SEED=7 FUZZ_N=3000 node --test test/fuzz.test.js   # longer fuzz run with another seed
 node scripts/check-static.mjs     # browser files/imports exist and parse
+node scripts/check-docs.mjs       # doc links/anchors/paths valid; every Cog word documented + in-game help
 node scripts/verify-levels.mjs    # proves every level/floor solvable (BFS optimum, crew joint search; --quick ~15 s)
 node scripts/level-report.mjs     # per-world table: optimum, par, solution steps/size, battery, new commands (--md for Markdown)
 UPDATE_SNAPSHOTS=1 node --test test/errors.test.js   # regenerate error-message snapshots
@@ -31,13 +38,14 @@ Error-message wording is pinned by `test/snapshots/errors.snap.txt`; after an
 intentional change, regenerate it and review the diff.
 
 Dev URL parameters (handy for scripted screenshots): `?level=N` opens level N
-(position in the full list: 1–8 World 1, 9–16 World 2, 17–24 World 3); `?id=proto-8` opens
+(position in the full list: 1–8 World 1, 9–16 World 2, … 33–40 World 5); `?id=proto-8` opens
 any level by id, including the old prototype fixtures (every tool unlocked);
 `&code=...` (URL-encoded) loads that program; `&run=1` takes one step,
 `&run=all` runs it instantly (finished before the first paint); `&solve=1` runs
 the level's known solution; `&bp=2,5` sets breakpoints; `&mode=blocks` opens
 the block editor; `&floor=3` watches test floor 3; `&map=1` opens the map;
-`&hint=1` / `&hint=2` opens the text / route hint; `&cb=1` turns on R/Y/B paint labels.
+`&hint=1` / `&hint=2` opens the text / route hint; `&cb=1` turns on R/Y/B paint labels;
+`&settings=1` opens the settings menu; `&help=1` opens the help dialog.
 Dev URLs ignore level locks; with no parameters the game starts on the map. `scripts/screenshots.sh
 blocks calib` takes only the named shots.
 
@@ -46,7 +54,7 @@ The game opens on the **factory map**: one card per world with a tile per
 level (stars earned, 🔒 when locked), total stars, a **Continue** button and
 **Reset progress…**. Levels open in order, but up to two unsolved levels are
 open at once, so one stuck puzzle never blocks you; a level you've won always
-stays open. Worlds 3–5 are shown as "under construction" until they're built.
+stays open.
 **▦ Map** (or the M key, outside the editor) opens the map; Esc or M goes back.
 The Level picker in the top bar still jumps anywhere that is open.
 
@@ -56,7 +64,7 @@ found by the solver for the floor you are watching (if the search is too big,
 the shortest drive to the next target instead). Crew levels have text hints
 only. The first level of each world opens with a short story intro; winning
 the last one adds the world's outro to the result banner. Accessibility: the
-**R/Y/B** checkbox in the top bar prints letters on painted floor tiles
+**R/Y/B** option in ⚙ Settings prints letters on painted floor tiles
 (colour-blind aid, saved), every button shows a visible keyboard focus ring,
 and `prefers-reduced-motion` turns off tweening and banner animation.
 
@@ -167,6 +175,7 @@ Pip with four facing sprites. Pip glides between tiles, hops when turning and
 lurches when bumping a wall; with `prefers-reduced-motion` it snaps instead.
 
 ## Cog in 30 seconds
+Full reference: [docs/cog-reference.md](docs/cog-reference.md).
 ```
 # comments start with #
 move 3            # also: left right grab drop wait
@@ -346,47 +355,19 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 
 ## Status
 
-Day 28 of 30 (plan rewritten on Day 16 for the owner's extended goals): a
-⚙ Settings menu (sound, hum, R/Y/B letters, Reduce motion, Win confetti), win
-confetti (`src/game/fx.js`, seeded particles), a level slide-in and banner pop,
-and the program header naming the selected crew robot, added on Day 28
-(screenshots `docs/day28-settings.png`, `docs/day28-crew.png`); seeded
-fuzz tests (`test/fuzz.test.js`: parser, solo/crew runner, share codes, blocked/full
-storage) and a balance pass (7 size pars tightened; table in `docs/par-table.md`)
-added on Day 27; hints
-(text, then a solver-planned route on the board), world story intros/outros,
-colour-blind paint labels and focus rings added on Day 26, with a content lint
-test (screenshots `docs/day26-hint.png`, `docs/day26-story.png`); an
-automated solver check (`src/game/verify.js`, `scripts/verify-levels.mjs`,
-joint-state crew BFS in `src/game/solver.js`) proves all 40 levels solvable on
-every test floor and that no par is below the optimum, added on Day 25; share
-codes (encode/decode with version + checksum, Import box, `?code=` links;
-screenshot `docs/day24-import.png`) added on Day 24; the
-**Lab** level editor screen with test-play gating and a saved custom-level
-library added on Day 23 (screenshot `docs/day23-lab.png`); level editor model
-added on Day 22 (`src/game/level-editor.js`: pure reducer for
-tiles, robots/crews, rules, tools, test floors, undo/redo; UI comes on Day 23);
-medal scoring added on Day 21; all
-40 levels in 5 worlds are built; World 5 "Swarm Floor" has 8 crew levels
-(two- and three-robot). Earlier days:: language core with friendly
-positioned errors, step limits and infinite-loop detection; level format v1
-with validation, per-level unlocked commands, reach/collect/deliver win rules
-and test floors; World 1 (8 levels), World 2 (8 sensor levels) World 3
-(8 function/memory levels) and World 4 (8 maze / path-planning levels), 3 test floors on most levels, with par scores and
-stars; a world map / level select with unlocks and a versioned save; a level
-screen with a text editor **and a block editor** (lossless text ⇄ blocks),
-Run/Pause/Step/Stop/Reset, speed, HUD, result banner and test-floor switcher;
-code-drawn pixel art with tweened animation; synthesized sound with saved
-mute/volume; a step debugger with breakpoints, step over / out, call-stack,
-function and memory panels; lint warnings; memory registers; a BFS solver; a
-level report script; factory mechanics (conveyor belts, pressure plates,
-doors, documented tick order) with a dev test rig (`?id=proto-10`); a
-path-planning module (BFS distance field + A*) behind the new `scan` sensor;
-a multi-robot **crew runner** (`src/game/crew.js`: lock-step rounds, crashes,
-shared belts/plates/doors; see `docs/ticks.md`) with **signals**
-(`send`/`wait NAME`, `signal` sensor, deadlock detection, crew lint, signal
-blocks); crew levels in the level format (`solutions`, per-robot names and
-tools) and in the UI: every robot drawn with its number and colour, one
-editor tab per robot, a crew debugger panel (each robot's line, who waits for
-which signal, pending signals) and a Deadlock banner. 278 automated tests.
-Next: Day 25, automated solver check of every level.
+Day 29 of 30: **feature complete.** All 40 levels in 5 worlds are built and
+proved solvable (solver + shipped solutions on all 92 test floors), with a
+text and block editor, step debugger (breakpoints, step over/out, call stack,
+memory, crew view), medals and stars, hints with solver routes, story beats,
+the Lab level editor with `FL1` share codes and `?code=` links, synthesized
+sound, saved progress and settings (sound, colour-blind labels, reduced
+motion, confetti). Day 29 added the docs: the
+[Cog reference](docs/cog-reference.md), the
+[level design guide](docs/level-design.md), the in-game **? Help** dialog
+(`src/game/help.js`) and `scripts/check-docs.mjs`. Earlier screenshots are in
+`docs/` (`day23-lab.png` … `day28-win.png`, `day29-help.png`).
+
+Known gaps: Share/Import buttons are unit-tested and screenshot-checked but
+were never clicked by a person in a real browser; win confetti is not visible
+in headless screenshots. Next: Day 30, scripted demo walkthrough, release
+checklist and a final full test run.
