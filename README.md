@@ -30,6 +30,7 @@ FUZZ_SEED=7 FUZZ_N=3000 node --test test/fuzz.test.js   # longer fuzz run with a
 node scripts/check-static.mjs     # browser files/imports exist and parse
 node scripts/check-docs.mjs       # doc links/anchors/paths valid; every Cog word documented + in-game help
 node scripts/verify-levels.mjs    # proves every level/floor solvable (BFS optimum, crew joint search; --quick ~15 s)
+node scripts/demo.mjs             # scripted terminal walkthrough: one level per world, share code, solver proof
 node scripts/level-report.mjs     # per-world table: optimum, par, solution steps/size, battery, new commands (--md for Markdown)
 UPDATE_SNAPSHOTS=1 node --test test/errors.test.js   # regenerate error-message snapshots
 scripts/screenshots.sh            # headless-Firefox smoke shots -> .tmp/shots/ (optional)
@@ -355,19 +356,19 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 
 ## Status
 
-Day 29 of 30: **feature complete.** All 40 levels in 5 worlds are built and
+**Day 30 of 30: finished (v1.0).** All 40 levels in 5 worlds are built and
 proved solvable (solver + shipped solutions on all 92 test floors), with a
 text and block editor, step debugger (breakpoints, step over/out, call stack,
 memory, crew view), medals and stars, hints with solver routes, story beats,
 the Lab level editor with `FL1` share codes and `?code=` links, synthesized
-sound, saved progress and settings (sound, colour-blind labels, reduced
-motion, confetti). Day 29 added the docs: the
+sound, saved progress and settings, the
 [Cog reference](docs/cog-reference.md), the
-[level design guide](docs/level-design.md), the in-game **? Help** dialog
-(`src/game/help.js`) and `scripts/check-docs.mjs`. Earlier screenshots are in
-`docs/` (`day23-lab.png` … `day28-win.png`, `day29-help.png`).
+[level design guide](docs/level-design.md) and an in-game **? Help** dialog.
+`node scripts/demo.mjs` is a scripted walkthrough; the
+[release checklist](docs/release-checklist.md) lists the final checks.
+Screenshots are in `docs/`.
 
 Known gaps: Share/Import buttons are unit-tested and screenshot-checked but
 were never clicked by a person in a real browser; win confetti is not visible
-in headless screenshots. Next: Day 30, scripted demo walkthrough, release
-checklist and a final full test run.
+in headless screenshots; 4 crew floors in World 5 are proved by their shipped
+solution, not by a solver optimum (search capped).
