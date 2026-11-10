@@ -16,6 +16,7 @@ import { SaveStore } from '../game/save.js';
 import { mapModel, totals, continueIndex, isOpen } from '../game/progress.js';
 import { renderMap } from './map-view.js';
 import { createLab } from './lab-view.js';
+import { routeHint, trailTiles, hintTiers, hintMessage, storyBeats } from '../game/hints.js';
 
 const $ = (id) => document.getElementById(id);
 const ctx = $('board').getContext('2d');
@@ -28,6 +29,10 @@ let shownResult = null; // result object the banner/status currently reflect
 let dirty = true;
 let anims = [new Animator()]; // one per robot
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+
+let hintTier = 0; // how many hint tiers are open on this level/floor
+let hintRoute = null; // tiles of the shown route hint (null = hidden)
+let cbLabels = false; // colour-blind letters on painted tiles
 
 let mode = 'text'; // 'text' | 'blocks' (remembered in localStorage)
 let notice = ''; // one-off message for the status line while editing (cleared on the next edit)
@@ -105,6 +110,10 @@ function loadLevel(i, level = LEVELS[i]) {
   $('level-num').title = place ? place.world.name : '';
   $('level-name').textContent = level.name;
   setRichText($('brief'), level.brief);
+  const story = storyBeats(place);
+  $('story').textContent = story.intro;
+  $('story').hidden = !story.intro;
+  clearHint();
   $('goal').textContent = `Goal: ${describeGoal(level)}`;
   anims = Array.from({ length: session.crew }, (_, k) => new Animator(k));
   buildCrewTabs();
@@ -178,6 +187,7 @@ function buildFloors() {
 
 function watchFloor(i) {
   session.setFloor(i);
+  if (hintRoute) { const r = routeHint(session.level, i); hintRoute = r ? trailTiles(r.trail) : null; }
   shownResult = undefined; // force the banner to refresh
   dirty = true;
 }
@@ -235,6 +245,8 @@ function drawBoard(now, dt) {
     bump: anims.some((a) => a.busy) ? null : session.bump,
     pose: anims.map((a) => a.pose()),
     time: reducedMotion.matches ? 0 : now,
+    route: hintRoute,
+    labels: cbLabels,
   });
 }
 
@@ -354,7 +366,8 @@ function showResult(result) {
   if (result.result === 'stopped') { setStatus('Stopped. Reset to try again.'); editor.setActive(session.line); return; }
   banner.className = `banner ${b.kind}`;
   $('banner-title').textContent = b.title;
-  $('banner-text').textContent = b.text;
+  const outro = b.kind === 'win' ? storyBeats(levelPlace(session.level)).outro : '';
+  $('banner-text').textContent = outro ? `${b.text} — ${outro}` : b.text;
   $('banner-next').hidden = !b.next;
   $('banner-floor').hidden = b.floor === undefined;
   if (b.floor !== undefined) { $('banner-floor').textContent = `Watch floor ${b.floor + 1} ▶`; $('banner-floor').dataset.floor = String(b.floor); }
@@ -443,6 +456,32 @@ $('reset').onclick = act(() => session.reset());
 $('step-over').onclick = act(() => session.stepOver());
 $('step-out').onclick = act(() => session.stepOut());
 $('banner-retry').onclick = act(() => { session.reset(); if (mode === 'text') editor.ta.focus(); });
+/** Hint button: first the text hint, then the route on the floor being watched. */
+function clearHint() {
+  hintTier = 0; hintRoute = null;
+  const tiers = session ? hintTiers(session.level) : [];
+  $('hint').disabled = !tiers.length;
+  $('hint').textContent = '💡 Hint';
+}
+function showHint() {
+  const tiers = hintTiers(session.level);
+  if (!tiers.length) return;
+  const tier = tiers[Math.min(hintTier, tiers.length - 1)];
+  hintTier = Math.min(hintTier + 1, tiers.length);
+  let route = null;
+  if (tier === 'route') {
+    route = routeHint(session.level, session.floor);
+    hintRoute = route ? trailTiles(route.trail) : null;
+  }
+  notice = hintMessage(session.level, tier, route);
+  setStatus(notice);
+  $('hint').textContent = hintTier < tiers.length ? '💡 Show route' : '💡 Hint';
+  dirty = true;
+}
+$('hint').onclick = showHint;
+cbLabels = Boolean(save.setting('cbLabels', false));
+$('cb-labels').checked = cbLabels;
+$('cb-labels').onchange = () => { cbLabels = $('cb-labels').checked; save.setSetting('cbLabels', cbLabels); dirty = true; };
 $('mode-text').onclick = () => setMode('text');
 $('mode-blocks').onclick = () => setMode('blocks');
 $('banner-floor').onclick = act(() => { watchFloor(Number($('banner-floor').dataset.floor)); session.run(); });
@@ -473,6 +512,9 @@ document.addEventListener('keydown', (e) => {
   } else if (e.key === 'F11' && e.shiftKey) {
     e.preventDefault();
     $('step-out').click();
+  } else if ((e.key === 'h' || e.key === 'H') && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    $('hint').click();
   } else if (e.key === 'Escape') {
     e.preventDefault();
     $('reset').click();
@@ -550,6 +592,8 @@ if (params.has('bp')) { // &bp=2,4 sets breakpoints (not saved)
   editor.setBreakpoints(session.breakpoints);
   blockEditor.setBreakpoints(session.breakpoints);
 }
+for (let n = Math.min(2, Number(params.get('hint')) || 0); n > 0; n--) showHint(); // dev/screenshots: open hint tiers
+if (params.get('cb') === '1') { cbLabels = true; $('cb-labels').checked = true; }
 if (params.get('solve') === '1') {
   const sols = session.level.solutions || [session.level.solution];
   for (let k = sols.length - 1; k >= 0; k--) { session.selectRobot(k); setProgram(sols[k]); }

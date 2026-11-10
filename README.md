@@ -35,7 +35,8 @@ any level by id, including the old prototype fixtures (every tool unlocked);
 `&code=...` (URL-encoded) loads that program; `&run=1` takes one step,
 `&run=all` runs it instantly (finished before the first paint); `&solve=1` runs
 the level's known solution; `&bp=2,5` sets breakpoints; `&mode=blocks` opens
-the block editor; `&floor=3` watches test floor 3; `&map=1` opens the map.
+the block editor; `&floor=3` watches test floor 3; `&map=1` opens the map;
+`&hint=1` / `&hint=2` opens the text / route hint; `&cb=1` turns on R/Y/B paint labels.
 Dev URLs ignore level locks; with no parameters the game starts on the map. `scripts/screenshots.sh
 blocks calib` takes only the named shots.
 
@@ -47,6 +48,16 @@ open at once, so one stuck puzzle never blocks you; a level you've won always
 stays open. Worlds 3–5 are shown as "under construction" until they're built.
 **▦ Map** (or the M key, outside the editor) opens the map; Esc or M goes back.
 The Level picker in the top bar still jumps anywhere that is open.
+
+**💡 Hint** (or H, outside the editor) shows the level's text hint; press it
+again to **show a route**: dots on the board along an optimal winning plan
+found by the solver for the floor you are watching (if the search is too big,
+the shortest drive to the next target instead). Crew levels have text hints
+only. The first level of each world opens with a short story intro; winning
+the last one adds the world's outro to the result banner. Accessibility: the
+**R/Y/B** checkbox in the top bar prints letters on painted floor tiles
+(colour-blind aid, saved), every button shows a visible keyboard focus ring,
+and `prefers-reduced-motion` turns off tweening and banner animation.
 
 **✎ Lab** (or open `index.html#lab`) is the level editor: pick a palette tool
 (floor, wall, goal, part, bin, paints, belts, plate, door, robot — click a robot
@@ -329,11 +340,15 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 - `src/game/level-editor.js` — editor reducer (undo/redo); `custom-levels.js` —
   test-play gate + custom library; `lab-tools.js` — palette click → action;
   `src/ui/lab-view.js` — the Lab screen
+- `src/game/hints.js` — hint tiers, route hint (solver plan → trail), story beats
 - `test/` — `node --test` suites; `scripts/` — check scripts
 
 ## Status
 
-Day 25 of 30 (plan rewritten on Day 16 for the owner's extended goals): an
+Day 26 of 30 (plan rewritten on Day 16 for the owner's extended goals): hints
+(text, then a solver-planned route on the board), world story intros/outros,
+colour-blind paint labels and focus rings added on Day 26, with a content lint
+test (screenshots `docs/day26-hint.png`, `docs/day26-story.png`); an
 automated solver check (`src/game/verify.js`, `scripts/verify-levels.mjs`,
 joint-state crew BFS in `src/game/solver.js`) proves all 40 levels solvable on
 every test floor and that no par is below the optimum, added on Day 25; share

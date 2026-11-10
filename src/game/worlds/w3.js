@@ -21,6 +21,7 @@ export const WORLD3 = {
   id: 'w3',
   name: 'Assembly Line',
   blurb: 'The factory floor. Pip learns to name routines and to remember numbers when sensors go dark.',
+  outro: 'Pip names its routines and keeps count in the dark. Next stop: the storage wing nobody has mapped in years.',
   levels: [
     {
       id: 'w3-1',

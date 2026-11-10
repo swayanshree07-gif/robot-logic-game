@@ -27,6 +27,7 @@ export const WORLD4 = {
   id: 'w4',
   name: 'Maze Wing',
   blurb: 'The old storage wing is a maze of shelving. Pip learns to find its way: wall following, holding a heading, and finally a real route planner.',
+  outro: 'Pip can find its way through any maze. But some jobs are too big for one robot — Hollis wakes up Bolt.',
   levels: [
     {
       id: 'w4-1',

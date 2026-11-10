@@ -14,6 +14,7 @@ export const WORLD1 = {
   id: 'w1',
   name: 'Boot Sequence',
   blurb: 'Pip boots up for the night shift. Learn to plan a route, step by step.',
+  outro: 'Shift one done. The night supervisor, a crane arm called Hollis, gives Pip a pair of sensors for tomorrow.',
   levels: [
     {
       id: 'w1-1',

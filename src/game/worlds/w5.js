@@ -28,6 +28,7 @@ export const WORLD5 = {
   id: 'w5',
   name: 'Swarm Floor',
   blurb: 'Bolt joins Pip on the factory floor. Two robots, two programs, one job: hold doors, hand parts over, and signal each other.',
+  outro: 'Pip and Bolt run the night shift together. The lab is yours now: build floors of your own in the Lab.',
   levels: [
     {
       id: 'w5-1',

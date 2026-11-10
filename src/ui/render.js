@@ -218,7 +218,7 @@ function drawPip(ctx, pose, holding, time) {
  * @param {{bump?: {x,y}, pose?: object, time?: number}} [opt]
  *   pose: from Animator.pose() (defaults to Pip's exact tile); time: ms for glow.
  */
-export function draw(ctx, world, { bump = null, pose = null, time = 0 } = {}) {
+export function draw(ctx, world, { bump = null, pose = null, time = 0, route = null, labels = false } = {}) {
   const c = ctx.canvas;
   const L = layout(world, c.width, c.height);
   ctx.clearRect(0, 0, c.width, c.height);
@@ -254,6 +254,8 @@ export function draw(ctx, world, { bump = null, pose = null, time = 0 } = {}) {
   }
   ctx.restore();
 
+  if (route && route.length) drawRoute(ctx, L, route);
+  if (labels && world.paint) drawPaintLabels(ctx, L, world);
   if (bots.length > 1) { // robot numbers, in screen pixels
     ctx.font = `bold ${Math.max(10, Math.round(L.cell * 0.3))}px monospace`;
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -268,4 +270,39 @@ export function draw(ctx, world, { bump = null, pose = null, time = 0 } = {}) {
     ctx.textAlign = 'right'; ctx.textBaseline = 'top';
     ctx.fillText(String(r.holding), L.ox + (p.x + 1) * L.cell - 2, L.oy + p.y * L.cell + 2);
   }
+}
+
+/** Hint trail: numbered-order dots on each tile of the route (screen pixels). */
+export function drawRoute(ctx, L, tiles) {
+  ctx.save();
+  ctx.fillStyle = ROUTE_INK;
+  ctx.strokeStyle = '#0d0f16';
+  ctx.lineWidth = 1.5;
+  const r = Math.max(2.5, L.cell * 0.11);
+  tiles.forEach((t, i) => {
+    if (i === 0) return; // Pip's own tile
+    ctx.globalAlpha = 0.55 + 0.45 * (i / tiles.length);
+    ctx.beginPath();
+    ctx.arc(L.ox + (t.x + 0.5) * L.cell, L.oy + (t.y + 0.5) * L.cell, r, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+  });
+  ctx.restore();
+}
+export const ROUTE_INK = '#ffffff';
+
+/** Colour-blind aid: R / Y / B in the corner of painted tiles. */
+export function drawPaintLabels(ctx, L, world) {
+  ctx.save();
+  ctx.font = `bold ${Math.max(9, Math.round(L.cell * 0.28))}px monospace`;
+  ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+  ctx.lineWidth = 3; ctx.strokeStyle = '#0d0f16'; ctx.fillStyle = '#ffffff';
+  for (let y = 0; y < world.height; y++) {
+    for (let x = 0; x < world.width; x++) {
+      const p = world.paint[y][x];
+      if (!p) continue;
+      const ch = p[0].toUpperCase(), X = L.ox + (x + 1) * L.cell - 2, Y = L.oy + (y + 1) * L.cell - 1;
+      ctx.strokeText(ch, X, Y); ctx.fillText(ch, X, Y);
+    }
+  }
+  ctx.restore();
 }

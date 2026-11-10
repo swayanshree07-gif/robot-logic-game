@@ -21,6 +21,7 @@ export const WORLD2 = {
   id: 'w2',
   name: 'Sensor Calibration',
   blurb: 'Pip gets eyes. Every job is tested on several floors, so Pip has to look before it moves.',
+  outro: 'Pip can look before it rolls. Hollis sends it down to the main factory floor, where the jobs get longer.',
   levels: [
     {
       id: 'w2-1',
