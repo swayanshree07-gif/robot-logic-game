@@ -6,8 +6,13 @@ line-based command language — to solve grid puzzles. It has 40 levels in 5
 worlds that each teach one robotics/CS idea (sequencing, sensing, loops,
 conditionals, functions, state machines, path planning, cooperation), a step
 debugger, a level editor (the Lab) with share codes, medals, hints, sound and
-saved progress. See `PLAN.md` for the 30-day roadmap and `PROGRESS.md` for the
-daily log.
+saved progress.
+
+![Pip running the known solution of level 1-6 "Restock Run"](docs/media/pip-plays.gif)
+
+*Level 1-6 "Restock Run", played by the real game in headless Firefox: each
+frame runs one more command of the shipped solution (36 steps, unrolled from
+its `repeat 4`).*
 
 **Docs:** [Cog language reference](docs/cog-reference.md) ·
 [Level design guide](docs/level-design.md) · [Tick order](docs/ticks.md) ·
@@ -51,6 +56,10 @@ Dev URLs ignore level locks; with no parameters the game starts on the map. `scr
 blocks calib` takes only the named shots.
 
 ## Playing
+![Factory map with five worlds](docs/media/map.png)
+
+*The factory map after winning 1-1 and 2-1: stars per level, locks, Continue.*
+
 The game opens on the **factory map**: one card per world with a tile per
 level (stars earned, 🔒 when locked), total stars, a **Continue** button and
 **Reset progress…**. Levels open in order, but up to two unsolved levels are
@@ -68,6 +77,14 @@ the last one adds the world's outro to the result banner. Accessibility: the
 **R/Y/B** option in ⚙ Settings prints letters on painted floor tiles
 (colour-blind aid, saved), every button shows a visible keyboard focus ring,
 and `prefers-reduced-motion` turns off tweening and banner animation.
+
+| Route hint (solver plan, R/Y/B labels) | Watching test floor 3 of 2-8 |
+|---|---|
+| ![Route hint on 2-2](docs/media/hint.png) | ![Solution on test floor 3](docs/media/floors.png) |
+
+![The Lab level editor](docs/media/lab.png)
+
+*The Lab: palette, board, level settings, known solution and share code box.*
 
 **✎ Lab** (or open `index.html#lab`) is the level editor: pick a palette tool
 (floor, wall, goal, part, bin, paints, belts, plate, door, robot — click a robot
@@ -219,6 +236,31 @@ Line 2, col 6: unknown sensor 'yelow' — did you mean 'yellow'?
  2 |   if yelow
    |      ^^^^^
 ```
+| Step debugger paused at a breakpoint (text) | Same program in the block editor |
+|---|---|
+| ![Debugger paused on line 5](docs/media/debug.png) | ![Block editor paused](docs/media/blocks.png) |
+
+*Level 1-6 with a breakpoint on line 5 (`drop`): current line, call stack and
+state are shown while the robot waits.*
+
+How a program runs, from text to a win (or a clear stop reason):
+
+```mermaid
+flowchart TD
+  A[Cog source text] --> B[parser.js: tokens → AST<br/>errors with line/col + did-you-mean]
+  B --> C[restrict.js / lint.js: locked tools, warnings]
+  C --> D[compiler.js: AST → bytecode]
+  D --> E[vm.js: step to next action]
+  E --> F[world.js: sensors read, action applied,<br/>belts/doors tick]
+  F --> G{win rule met<br/>on this floor?}
+  G -- yes --> H{more test floors?}
+  H -- yes --> E2[reset world on next floor] --> E
+  H -- no --> W[Win: score.js stars + medals]
+  G -- no --> I{bump / battery empty /<br/>repeated state / deadlock?}
+  I -- yes --> X[Stop with reason banner]
+  I -- no --> E
+```
+
 Runs stop with a clear reason when Pip bumps a wall, recurses more than 64
 calls deep, loops without acting, repeats exactly the same situation (provable
 infinite loop), or uses up the 2000-step battery.
@@ -294,8 +336,16 @@ Levels are grouped into worlds (`src/game/levels.js` → `WORLDS`, `LEVELS`).
   Doorstop (a part on a plate), 5-7 Relay Line (two hand-off tiles), 5-8
   Night Shift. `test/world5.test.js` checks every floor wins at par, that
   every robot is needed, and that signal-free versions fail.
+  ![Crew level 5-1 solved](docs/media/crew.png)
+  *5-1 Hold the Door: Pip and Bolt each run their own program and use signals.*
 - The Day 1–4 prototypes are no longer in the level list; they stay in
   `PROTOTYPES` / `ALL_LEVELS` as test fixtures.
+
+![Solver optimum vs par vs solution for all 40 levels](docs/media/par-chart.png)
+
+*From `node scripts/level-report.mjs`: per level, the BFS solver's optimum
+steps (dots), the par, the shipped solution's steps, and its size. Gaps between
+dot and bars are levels where a general (sensing) program must cost extra steps.*
 
 `test/levels.test.js` checks per world that every solution wins, tools unlock
 in order (nothing learned is taken away; each new command is used), the
@@ -327,6 +377,57 @@ unchanged and still wins, and can be built from its level's own tile tray. Par f
 `par: { steps, size }` (optional, validated by `level.js`).
 
 ## Layout
+Architecture: pure logic modules (tested by `node --test`) under a thin
+browser layer.
+
+```mermaid
+flowchart LR
+  subgraph Browser["src/ui (browser only)"]
+    MAIN[main.js page wiring] --> REN[render.js + art.js canvas]
+    MAIN --> ED[editor.js / blocks-view.js]
+    MAIN --> MAP[map-view.js]
+    MAIN --> LAB[lab-view.js]
+    MAIN --> AUD[audio.js]
+  end
+  subgraph Game["src/game (pure)"]
+    SES[session.js PlaySession] --> RUN[run.js Runner]
+    CREW[crew.js] --> RUN
+    LV[levels.js + worlds/w1..w5] --> SES
+    SOL[solver.js BFS] --> HINT[hints.js]
+    SAVE[save.js / progress.js]
+    LE[level-editor.js + share-code.js]
+  end
+  subgraph Lang["src/lang (pure)"]
+    P[parser] --> C[compiler] --> VM[vm]
+  end
+  subgraph World["src/world (pure)"]
+    W[world.js] --- L[level.js] --- PA[paths.js]
+  end
+  MAIN --> SES
+  RUN --> VM
+  RUN --> W
+  SOL --> W
+  LAB --> LE
+  SAVE <--> LS[(localStorage)]
+  TESTS[test/ + scripts/verify-levels.mjs] -.-> Game & Lang & World
+```
+
+Repository map:
+
+```mermaid
+flowchart TD
+  R[robot-logic-game/] --> IDX[index.html + css/ — the page]
+  R --> SRC[src/]
+  SRC --> SL[lang/ — Cog parser, compiler, VM, errors, lint, blocks]
+  SRC --> SW[world/ — grid rules, sensors, level format, path planning]
+  SRC --> SG[game/ — 40 levels, runner, session, solver, crews, save, Lab, share codes]
+  SRC --> SU[ui/ — canvas art, editors, map, Lab screen, sound]
+  R --> T[test/ — node --test suites + error snapshots]
+  R --> S[scripts/ — verify-levels, level-report, demo, doc/static checks, screenshots]
+  R --> D[docs/ — Cog reference, design guide, par table; media/ for README visuals]
+  R --> TO[tools/ — media capture: capture-media.sh, make-media.py]
+```
+
 - `src/lang/` — parser (source → AST), compiler (AST → bytecode), steppable VM,
   `errors.js` (positions, "did you mean", caret formatting), `lint.js`
   (non-fatal warnings, `analyze()` = parse + lint without running)
@@ -366,7 +467,9 @@ sound, saved progress and settings, the
 [level design guide](docs/level-design.md) and an in-game **? Help** dialog.
 `node scripts/demo.mjs` is a scripted walkthrough; the
 [release checklist](docs/release-checklist.md) lists the final checks.
-Screenshots are in `docs/`.
+Screenshots are in `docs/`; README media in `docs/media/` is regenerated
+with `tools/capture-media.sh` then `.venv/bin/python tools/make-media.py`
+(needs Firefox, matplotlib, Pillow).
 
 Known gaps: Share/Import buttons are unit-tested and screenshot-checked but
 were never clicked by a person in a real browser; win confetti is not visible
